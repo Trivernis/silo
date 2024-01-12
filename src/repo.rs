@@ -1,7 +1,5 @@
-use handlebars::Handlebars;
 use miette::{bail, Context, IntoDiagnostic, Result};
 use serde::Deserialize;
-use serde_json::json;
 use std::{
     env,
     fs::{self},
@@ -39,11 +37,19 @@ pub enum DirEntry {
     File(FileEntry),
     Dir(PathBuf, Vec<DirEntry>),
     Root(PathBuf, RootDirData, Vec<DirEntry>),
+    Ignored(PathBuf),
 }
 
 impl DirEntry {
     fn parse(path: PathBuf) -> Result<Self> {
         if path.is_dir() {
+            log::debug!("Parsing directory {path:?}");
+
+            if path.file_name().unwrap() == ".git" {
+                log::debug!("Ignoring .git directory");
+                return Ok(Self::Ignored(path));
+            }
+
             let mut children = Vec::new();
 
             for read_entry in fs::read_dir(&path).into_diagnostic()? {
@@ -53,16 +59,23 @@ impl DirEntry {
 
             let meta_file = path.join("dir.toml");
             let meta_tmpl = path.join("dir.toml.tmpl");
+
             if meta_file.exists() {
+                log::debug!("Found metadata file");
                 let metadata = RootDirData::read(&meta_file)?;
+
                 Ok(Self::Root(path, metadata, children))
             } else if meta_tmpl.exists() {
+                log::debug!("Found metadata template");
                 let metadata = RootDirData::read_template(&meta_tmpl)?;
+
                 Ok(Self::Root(path, metadata, children))
             } else {
+                log::debug!("Directory is child");
                 Ok(Self::Dir(path, children))
             }
         } else {
+            log::debug!("Parsing file {path:?}");
             Ok(Self::File(FileEntry::parse(path)?))
         }
     }
@@ -71,8 +84,9 @@ impl DirEntry {
         match self {
             DirEntry::File(file) => file.apply(cwd),
             DirEntry::Dir(p, children) => {
-                let cwd = cwd.join(p.iter().last().unwrap());
+                let cwd = cwd.join(p.file_name().unwrap());
                 if !cwd.exists() {
+                    log::info!("Creating {cwd:?}");
                     fs::create_dir_all(&cwd)
                         .into_diagnostic()
                         .with_context(|| format!("Creating directory {cwd:?}"))?;
@@ -92,6 +106,7 @@ impl DirEntry {
                 let cwd = PathBuf::from(rendered_path);
 
                 if !cwd.exists() {
+                    log::info!("Creating {cwd:?}");
                     fs::create_dir_all(&cwd)
                         .into_diagnostic()
                         .with_context(|| format!("Creating directory {cwd:?}"))?;
@@ -99,6 +114,10 @@ impl DirEntry {
                 for child in children {
                     child.apply(&cwd)?;
                 }
+                Ok(())
+            }
+            DirEntry::Ignored(p) => {
+                log::debug!("Ignoring {p:?}");
                 Ok(())
             }
         }
@@ -109,7 +128,7 @@ impl DirEntry {
 pub enum FileEntry {
     Template(PathBuf),
     Plain(PathBuf),
-    Metadata,
+    Ignored(PathBuf),
 }
 
 impl FileEntry {
@@ -117,10 +136,13 @@ impl FileEntry {
         let file_name = path.file_name().unwrap();
 
         if file_name == "dir.toml" || file_name == "dir.toml.tmpl" {
-            Ok(Self::Metadata)
+            log::debug!("File is metadata");
+            Ok(Self::Ignored(path))
         } else if let Some(true) = path.extension().map(|e| e == "tmpl") {
+            log::debug!("File is template");
             Ok(Self::Template(path))
         } else {
+            log::debug!("File is plain");
             Ok(Self::Plain(path))
         }
     }
@@ -128,6 +150,7 @@ impl FileEntry {
     fn apply(&self, cwd: &Path) -> Result<()> {
         match self {
             FileEntry::Template(path) => {
+                log::debug!("Processing template {path:?}");
                 let contents = fs::read_to_string(path).into_diagnostic()?;
 
                 let rendered = templating::engine()
@@ -135,9 +158,11 @@ impl FileEntry {
                     .into_diagnostic()
                     .with_context(|| format!("rendering template {path:?}"))?;
 
-                let path = path.with_extension("");
-                let filename = path.file_name().unwrap();
+                let new_path = path.with_extension("");
+                let filename = new_path.file_name().unwrap();
                 let dest = cwd.join(filename);
+                log::info!("Writing {path:?} -> {dest:?}");
+
                 fs::write(&dest, rendered)
                     .into_diagnostic()
                     .with_context(|| format!("write to destination {dest:?}"))?;
@@ -145,11 +170,15 @@ impl FileEntry {
             FileEntry::Plain(path) => {
                 let filename = path.file_name().unwrap();
                 let dest = cwd.join(filename);
+                log::info!("Copying {path:?} -> {dest:?}");
+
                 fs::copy(path, &dest)
                     .into_diagnostic()
                     .with_context(|| format!("copy {path:?} to {dest:?}"))?;
             }
-            FileEntry::Metadata => {}
+            FileEntry::Ignored(p) => {
+                log::debug!("Ignoring {p:?}")
+            }
         }
 
         Ok(())

@@ -4,6 +4,9 @@ use clap::{Parser, Subcommand};
 
 #[derive(Clone, Debug, Parser)]
 pub struct Args {
+    #[arg(short, long)]
+    pub verbose: bool,
+
     #[arg(short, long, default_value = ".")]
     pub repo: PathBuf,
     /// The silo command to execute
