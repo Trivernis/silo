@@ -44,7 +44,6 @@ pub enum DirEntry {
 impl DirEntry {
     fn parse(path: PathBuf) -> Result<Self> {
         if path.is_dir() {
-            let meta_file = path.join("dir.toml");
             let mut children = Vec::new();
 
             for read_entry in fs::read_dir(&path).into_diagnostic()? {
@@ -52,8 +51,13 @@ impl DirEntry {
                 children.push(DirEntry::parse(read_entry.path())?);
             }
 
+            let meta_file = path.join("dir.toml");
+            let meta_tmpl = path.join("dir.toml.tmpl");
             if meta_file.exists() {
                 let metadata = RootDirData::read(&meta_file)?;
+                Ok(Self::Root(path, metadata, children))
+            } else if meta_tmpl.exists() {
+                let metadata = RootDirData::read_template(&meta_tmpl)?;
                 Ok(Self::Root(path, metadata, children))
             } else {
                 Ok(Self::Dir(path, children))
@@ -110,10 +114,12 @@ pub enum FileEntry {
 
 impl FileEntry {
     fn parse(path: PathBuf) -> Result<Self> {
-        if let Some(true) = path.extension().map(|e| e == "tmpl") {
-            Ok(Self::Template(path))
-        } else if path.file_name().unwrap() == "dir.toml" {
+        let file_name = path.file_name().unwrap();
+
+        if file_name == "dir.toml" || file_name == "dir.toml.tmpl" {
             Ok(Self::Metadata)
+        } else if let Some(true) = path.extension().map(|e| e == "tmpl") {
+            Ok(Self::Template(path))
         } else {
             Ok(Self::Plain(path))
         }
@@ -161,6 +167,19 @@ impl RootDirData {
             .into_diagnostic()
             .with_context(|| format!("reading metadata file {path:?}"))?;
         toml::from_str(&contents)
+            .into_diagnostic()
+            .with_context(|| format!("parsing metadata file {path:?}"))
+    }
+
+    fn read_template(path: &Path) -> Result<Self> {
+        let contents = fs::read_to_string(path)
+            .into_diagnostic()
+            .with_context(|| format!("reading metadata file {path:?}"))?;
+        let rendered = templating::engine()
+            .render_template(&contents, templating::context())
+            .into_diagnostic()
+            .with_context(|| format!("processing template {path:?}"))?;
+        toml::from_str(&rendered)
             .into_diagnostic()
             .with_context(|| format!("parsing metadata file {path:?}"))
     }
