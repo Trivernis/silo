@@ -1,0 +1,18 @@
+[package]
+name = "silo"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.4.14", features = ["derive", "env"] }
+dirs = "5.0.1"
+handlebars = "5.0.0"
+handlebars_switch = "0.6.0"
+lazy_static = "1.4.0"
+miette = { version = "5.10.0", features = ["serde", "fancy"] }
+serde = { version = "1.0.195", features = ["derive"] }
+serde_json = "1.0.111"
+sys-info = "0.9.1"
+toml = "0.8.8"

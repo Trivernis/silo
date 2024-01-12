@@ -1,0 +1,8 @@
+/target
+# ignore .git so it doesn't show up in file manager
+.git
+
+example
+example2
+examples
+test
