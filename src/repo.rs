@@ -1,12 +1,15 @@
+use globset::{Glob, GlobSet, GlobSetBuilder};
 use miette::{bail, Context, IntoDiagnostic, Result};
 use serde::Deserialize;
 use std::{
     env,
     fs::{self},
     path::{Path, PathBuf},
+    rc::Rc,
 };
 
 use crate::templating;
+use lazy_static::lazy_static;
 
 #[derive(Clone, Debug)]
 pub struct SiloRepo {
@@ -20,7 +23,7 @@ impl SiloRepo {
         }
 
         Ok(Self {
-            root: DirEntry::parse(path.to_owned())?,
+            root: DirEntry::parse(Rc::new(ParseContext::default()), path.to_owned())?,
         })
     }
 
@@ -32,46 +35,81 @@ impl SiloRepo {
     }
 }
 
+pub struct ParseContext {
+    ignored: GlobSet,
+}
+
+impl ParseContext {
+    pub fn new(ignored: GlobSet) -> Self {
+        Self { ignored }
+    }
+}
+
+impl Default for ParseContext {
+    fn default() -> Self {
+        Self {
+            ignored: GlobSet::empty(),
+        }
+    }
+}
+
+lazy_static! {
+    static ref IGNORED_PATHS: GlobSet = GlobSetBuilder::new()
+        .add(Glob::new("**/.git").unwrap())
+        .add(Glob::new("**/dir.{toml,toml.tmpl}").unwrap())
+        .build()
+        .unwrap();
+}
+
 #[derive(Clone, Debug)]
 pub enum DirEntry {
     File(FileEntry),
     Dir(PathBuf, Vec<DirEntry>),
     Root(PathBuf, RootDirData, Vec<DirEntry>),
-    Ignored(PathBuf),
 }
 
 impl DirEntry {
-    fn parse(path: PathBuf) -> Result<Self> {
+    fn parse(mut context: Rc<ParseContext>, path: PathBuf) -> Result<Self> {
         if path.is_dir() {
             log::debug!("Parsing directory {path:?}");
 
-            if path.file_name().unwrap() == ".git" {
-                log::debug!("Ignoring .git directory");
-                return Ok(Self::Ignored(path));
-            }
+            let meta_file = path.join("dir.toml");
+            let meta_tmpl = path.join("dir.toml.tmpl");
+
+            let metadata = if meta_file.exists() {
+                log::debug!("Found metadata file");
+                let metadata = RootDirData::read(&meta_file)?;
+                context = Rc::new(ParseContext::new(metadata.ignored.clone()));
+
+                Some(metadata)
+            } else if meta_tmpl.exists() {
+                log::debug!("Found metadata template");
+                let metadata = RootDirData::read_template(&meta_tmpl)?;
+                context = Rc::new(ParseContext::new(metadata.ignored.clone()));
+
+                Some(metadata)
+            } else {
+                log::debug!("Directory is child");
+                None
+            };
 
             let mut children = Vec::new();
 
             for read_entry in fs::read_dir(&path).into_diagnostic()? {
                 let read_entry = read_entry.into_diagnostic()?;
-                children.push(DirEntry::parse(read_entry.path())?);
+                let entry_path = read_entry.path();
+                let test_path = entry_path.strip_prefix(&path).into_diagnostic()?;
+
+                if !IGNORED_PATHS.is_match(&test_path) && !context.ignored.is_match(&test_path) {
+                    children.push(DirEntry::parse(context.clone(), entry_path)?);
+                } else {
+                    log::debug!("Entry {entry_path:?} is ignored")
+                }
             }
 
-            let meta_file = path.join("dir.toml");
-            let meta_tmpl = path.join("dir.toml.tmpl");
-
-            if meta_file.exists() {
-                log::debug!("Found metadata file");
-                let metadata = RootDirData::read(&meta_file)?;
-
-                Ok(Self::Root(path, metadata, children))
-            } else if meta_tmpl.exists() {
-                log::debug!("Found metadata template");
-                let metadata = RootDirData::read_template(&meta_tmpl)?;
-
+            if let Some(metadata) = metadata {
                 Ok(Self::Root(path, metadata, children))
             } else {
-                log::debug!("Directory is child");
                 Ok(Self::Dir(path, children))
             }
         } else {
@@ -116,10 +154,6 @@ impl DirEntry {
                 }
                 Ok(())
             }
-            DirEntry::Ignored(p) => {
-                log::debug!("Ignoring {p:?}");
-                Ok(())
-            }
         }
     }
 }
@@ -128,17 +162,11 @@ impl DirEntry {
 pub enum FileEntry {
     Template(PathBuf),
     Plain(PathBuf),
-    Ignored(PathBuf),
 }
 
 impl FileEntry {
     fn parse(path: PathBuf) -> Result<Self> {
-        let file_name = path.file_name().unwrap();
-
-        if file_name == "dir.toml" || file_name == "dir.toml.tmpl" {
-            log::debug!("File is metadata");
-            Ok(Self::Ignored(path))
-        } else if let Some(true) = path.extension().map(|e| e == "tmpl") {
+        if let Some(true) = path.extension().map(|e| e == "tmpl") {
             log::debug!("File is template");
             Ok(Self::Template(path))
         } else {
@@ -176,9 +204,6 @@ impl FileEntry {
                     .into_diagnostic()
                     .with_context(|| format!("copy {path:?} to {dest:?}"))?;
             }
-            FileEntry::Ignored(p) => {
-                log::debug!("Ignoring {p:?}")
-            }
         }
 
         Ok(())
@@ -188,6 +213,8 @@ impl FileEntry {
 #[derive(Clone, Debug, Deserialize)]
 pub struct RootDirData {
     pub path: String,
+    #[serde(default)]
+    pub ignored: GlobSet,
 }
 
 impl RootDirData {
