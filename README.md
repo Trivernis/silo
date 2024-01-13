@@ -16,6 +16,7 @@ First create a repo
 silo --repo /path/to/repo init
 ```
 This creates the repo directory and initializes a git repository.
+If no `--repo` argument is passed, it will default to `$HOME/.local/share/silo` or `$HOME/AppData/Roaming/silo`.
 
 ### Add configuration files
 
