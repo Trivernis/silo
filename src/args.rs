@@ -23,6 +23,9 @@ pub enum Command {
 
     /// Print the entire context available to templates
     Context,
+
+    /// Print the path of the repo
+    Repo,
 }
 
 fn default_repo() -> &'static str {

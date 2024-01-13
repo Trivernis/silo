@@ -22,6 +22,9 @@ fn main() -> Result<()> {
                 serde_json::to_string_pretty(templating::context()).into_diagnostic()?
             )
         }
+        args::Command::Repo => {
+            println!("{}", args.repo.to_string_lossy())
+        }
     }
 
     Ok(())
