@@ -22,6 +22,7 @@ pub fn context<'a>() -> &'a ContextData {
 pub struct ContextData {
     pub dirs: ContextDirs,
     pub system: SystemData,
+    pub flags: Flags,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -72,6 +73,25 @@ impl Default for ContextDirs {
             } else {
                 PathBuf::from("/usr/share")
             },
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct Flags {
+    windows: bool,
+    unix: bool,
+    linux: bool,
+    macos: bool,
+}
+
+impl Default for Flags {
+    fn default() -> Self {
+        Self {
+            windows: cfg!(windows),
+            unix: cfg!(unix),
+            linux: cfg!(target_os = "linux"),
+            macos: cfg!(target_os = "macos"),
         }
     }
 }
