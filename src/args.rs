@@ -20,4 +20,7 @@ pub enum Command {
     Init,
     /// Applies the configuration stored in a silo repo
     Apply,
+
+    /// Print the entire context available to templates
+    Context,
 }

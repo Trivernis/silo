@@ -16,6 +16,12 @@ fn main() -> Result<()> {
     match &args.command {
         args::Command::Init => init(&args)?,
         args::Command::Apply => apply(&args)?,
+        args::Command::Context => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(templating::context()).into_diagnostic()?
+            )
+        }
     }
 
     Ok(())

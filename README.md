@@ -39,6 +39,7 @@ contain a `dirs.toml` file that specifies a different location.
 
 Files ending with `.tmpl` are treated as [handlebars templates](https://handlebarsjs.com/) and are processed
 before being written to the target location. The `.tmpl` extension will be stripped from the filename.
+You can check the available context variables and their values on the system with `silo context`.
 
 
 ### Applying the configuration
