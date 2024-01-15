@@ -122,13 +122,18 @@ impl DirEntry {
         match self {
             DirEntry::File(file) => file.apply(cwd),
             DirEntry::Dir(p, children) => {
-                let cwd = cwd.join(p.file_name().unwrap());
-                if !cwd.exists() {
-                    log::info!("Creating {cwd:?}");
-                    fs::create_dir_all(&cwd)
-                        .into_diagnostic()
-                        .with_context(|| format!("Creating directory {cwd:?}"))?;
-                }
+                let cwd = if p != cwd {
+                    let cwd = cwd.join(p.file_name().unwrap());
+                    if !cwd.exists() {
+                        log::info!("Creating {cwd:?}");
+                        fs::create_dir_all(&cwd)
+                            .into_diagnostic()
+                            .with_context(|| format!("Creating directory {cwd:?}"))?;
+                    }
+                    cwd
+                } else {
+                    p.to_owned()
+                };
                 for child in children {
                     child.apply(&cwd)?;
                 }
