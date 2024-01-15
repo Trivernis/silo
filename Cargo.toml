@@ -6,7 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+chksum = "0.3.0"
 clap = { version = "4.4.14", features = ["derive", "env"] }
+dialoguer = "0.11.0"
 dirs = "5.0.1"
 figment = { version = "0.10.13", features = ["toml", "env"] }
 git2 = "0.18.1"
@@ -20,4 +22,5 @@ pretty_env_logger = "0.5.0"
 serde = { version = "1.0.195", features = ["derive"] }
 serde_json = "1.0.111"
 sys-info = "0.9.1"
+tempfile = "3.9.0"
 toml = "0.8.8"

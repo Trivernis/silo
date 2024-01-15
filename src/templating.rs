@@ -1,27 +1,10 @@
-use std::{
-    env,
-    fs::File,
-    io::BufWriter,
-    path::{Path, PathBuf},
-};
+use std::{env, path::PathBuf};
 
 use handlebars::Handlebars;
 use handlebars_switch::SwitchHelper;
 use lazy_static::lazy_static;
 use miette::{Context, IntoDiagnostic, Result};
 use serde::Serialize;
-
-pub fn render_to_file<T: Serialize>(path: &Path, template: &str, ctx: T) -> Result<()> {
-    let file = File::create(path)
-        .into_diagnostic()
-        .context("creating file")?;
-    let writer = BufWriter::new(file);
-    engine()
-        .render_template_to_write(template, &context(ctx), writer)
-        .into_diagnostic()
-        .context("rendering to path")?;
-    Ok(())
-}
 
 pub fn render<T: Serialize>(template: &str, ctx: T) -> Result<String> {
     engine()

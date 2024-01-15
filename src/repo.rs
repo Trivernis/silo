@@ -1,12 +1,17 @@
+use chksum::sha2_256::chksum;
+use dialoguer::Confirm;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use miette::{bail, Context, IntoDiagnostic, Result};
 use serde::{Deserialize, Serialize};
 use std::{
     env,
-    fs::{self},
+    fs::{self, File},
+    io::Write,
     path::{Path, PathBuf},
+    process::Command,
     rc::Rc,
 };
+use tempfile::NamedTempFile;
 
 use crate::{
     config::{read_config, SiloConfig},
@@ -202,17 +207,29 @@ impl FileEntry {
                 let filename = new_path.file_name().unwrap();
                 let dest = cwd.join(filename);
 
-                templating::render_to_file(&dest, &contents, &ctx.config.template_context)?;
-                log::info!("Render {path:?} -> {dest:?}");
+                let render_contents = templating::render(&contents, &ctx.config.template_context)?;
+
+                if confirm_changes(&ctx.config.diff_tool, &render_contents, &dest)? {
+                    log::info!("Render {path:?} -> {dest:?}");
+                    fs::write(&dest, render_contents)
+                        .into_diagnostic()
+                        .context("writing changes")?;
+                } else {
+                    log::info!("Skipping {path:?} !-> {dest:?}");
+                }
             }
             FileEntry::Plain(path) => {
                 let filename = path.file_name().unwrap();
                 let dest = cwd.join(filename);
-                log::info!("Copying {path:?} -> {dest:?}");
 
-                fs::copy(path, &dest)
-                    .into_diagnostic()
-                    .with_context(|| format!("copy {path:?} to {dest:?}"))?;
+                if confirm_write(&ctx.config.diff_tool, path, &dest)? {
+                    log::info!("Copying {path:?} -> {dest:?}");
+                    fs::copy(path, &dest)
+                        .into_diagnostic()
+                        .with_context(|| format!("copy {path:?} to {dest:?}"))?;
+                } else {
+                    log::info!("Skipping {path:?} !-> {dest:?}");
+                }
             }
         }
 
@@ -246,4 +263,43 @@ impl RootDirData {
             .into_diagnostic()
             .with_context(|| format!("parsing metadata file {path:?}"))
     }
+}
+
+fn confirm_changes(diff_tool: &str, changes: &str, original: &Path) -> Result<bool> {
+    let mut tmp = NamedTempFile::new()
+        .into_diagnostic()
+        .context("create tmp file")?;
+    tmp.write_all(changes.as_bytes())
+        .into_diagnostic()
+        .context("write tmp file")?;
+    confirm_write(diff_tool, &tmp.into_temp_path(), original)
+}
+
+fn confirm_write(diff_tool: &str, a: &Path, b: &Path) -> Result<bool> {
+    if !b.exists() {
+        return Ok(true);
+    }
+    let f1 = File::open(a)
+        .into_diagnostic()
+        .with_context(|| format!("opening file {a:?}"))?;
+    let f2 = File::open(b)
+        .into_diagnostic()
+        .with_context(|| format!("opening file {b:?}"))?;
+
+    if chksum(f1).into_diagnostic()?.as_bytes() == chksum(f2).into_diagnostic()?.as_bytes() {
+        return Ok(true);
+    }
+    Command::new(diff_tool)
+        .arg(b)
+        .arg(a)
+        .spawn()
+        .into_diagnostic()
+        .context("spawn diff tool")?
+        .wait()
+        .into_diagnostic()
+        .context("wait for diff tool to exit")?;
+    Confirm::new()
+        .with_prompt("Do you want to apply these changes?")
+        .interact()
+        .into_diagnostic()
 }
