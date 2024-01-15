@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.4.14", features = ["derive", "env"] }
 dirs = "5.0.1"
+figment = { version = "0.10.13", features = ["toml", "env"] }
 git2 = "0.18.1"
 globset = { version = "0.4.14", features = ["serde", "serde1"] }
 handlebars = "5.0.0"

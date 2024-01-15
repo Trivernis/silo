@@ -8,12 +8,16 @@ use std::{
     rc::Rc,
 };
 
-use crate::templating;
+use crate::{
+    config::{read_config, SiloConfig},
+    templating,
+};
 use lazy_static::lazy_static;
 
 #[derive(Clone, Debug)]
 pub struct SiloRepo {
     pub root: DirEntry,
+    pub config: SiloConfig,
 }
 
 impl SiloRepo {
@@ -23,6 +27,7 @@ impl SiloRepo {
         }
 
         Ok(Self {
+            config: read_config(path)?,
             root: DirEntry::parse(Rc::new(ParseContext::default()), path.to_owned())?,
         })
     }
@@ -31,7 +36,10 @@ impl SiloRepo {
         let cwd = env::current_dir()
             .into_diagnostic()
             .context("get current dir")?;
-        self.root.apply(&cwd)
+        let ctx = ApplyContext {
+            config: self.config.clone(),
+        };
+        self.root.apply(&ctx, &cwd)
     }
 }
 
@@ -51,6 +59,10 @@ impl Default for ParseContext {
             ignored: GlobSet::empty(),
         }
     }
+}
+
+pub struct ApplyContext {
+    config: SiloConfig,
 }
 
 lazy_static! {
@@ -118,9 +130,9 @@ impl DirEntry {
         }
     }
 
-    fn apply(&self, cwd: &Path) -> Result<()> {
+    fn apply(&self, ctx: &ApplyContext, cwd: &Path) -> Result<()> {
         match self {
-            DirEntry::File(file) => file.apply(cwd),
+            DirEntry::File(file) => file.apply(ctx, cwd),
             DirEntry::Dir(p, children) => {
                 let cwd = if p != cwd {
                     let cwd = cwd.join(p.file_name().unwrap());
@@ -135,14 +147,17 @@ impl DirEntry {
                     p.to_owned()
                 };
                 for child in children {
-                    child.apply(&cwd)?;
+                    child.apply(ctx, &cwd)?;
                 }
                 Ok(())
             }
             DirEntry::Root(_, data, children) => {
                 let engine = templating::engine();
                 let rendered_path = engine
-                    .render_template(&data.path, templating::context())
+                    .render_template(
+                        &data.path,
+                        &templating::context(&ctx.config.template_context),
+                    )
                     .into_diagnostic()
                     .with_context(|| format!("render template {}", data.path))?;
 
@@ -155,7 +170,7 @@ impl DirEntry {
                         .with_context(|| format!("Creating directory {cwd:?}"))?;
                 }
                 for child in children {
-                    child.apply(&cwd)?;
+                    child.apply(ctx, &cwd)?;
                 }
                 Ok(())
             }
@@ -180,14 +195,17 @@ impl FileEntry {
         }
     }
 
-    fn apply(&self, cwd: &Path) -> Result<()> {
+    fn apply(&self, ctx: &ApplyContext, cwd: &Path) -> Result<()> {
         match self {
             FileEntry::Template(path) => {
                 log::debug!("Processing template {path:?}");
                 let contents = fs::read_to_string(path).into_diagnostic()?;
 
                 let rendered = templating::engine()
-                    .render_template(&contents, templating::context())
+                    .render_template(
+                        &contents,
+                        &templating::context(&ctx.config.template_context),
+                    )
                     .into_diagnostic()
                     .with_context(|| format!("rendering template {path:?}"))?;
 
@@ -237,7 +255,7 @@ impl RootDirData {
             .into_diagnostic()
             .with_context(|| format!("reading metadata file {path:?}"))?;
         let rendered = templating::engine()
-            .render_template(&contents, templating::context())
+            .render_template(&contents, &templating::context(()))
             .into_diagnostic()
             .with_context(|| format!("processing template {path:?}"))?;
         toml::from_str(&rendered)

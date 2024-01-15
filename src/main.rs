@@ -6,6 +6,7 @@ use miette::{Context, IntoDiagnostic, Result};
 use repo::SiloRepo;
 
 mod args;
+mod config;
 mod repo;
 mod templating;
 
@@ -17,9 +18,11 @@ fn main() -> Result<()> {
         args::Command::Init => init(&args)?,
         args::Command::Apply => apply(&args)?,
         args::Command::Context => {
+            let repo = SiloRepo::open(&args.repo)?;
             println!(
                 "{}",
-                serde_json::to_string_pretty(templating::context()).into_diagnostic()?
+                serde_json::to_string_pretty(&templating::context(repo.config.template_context))
+                    .into_diagnostic()?
             )
         }
         args::Command::Repo => {
@@ -59,6 +62,10 @@ fn init(args: &Args) -> Result<()> {
     let _gitrepo = git2::Repository::init(&args.repo)
         .into_diagnostic()
         .with_context(|| format!("initializing repository at {:?}", args.repo))?;
+    fs::write(args.repo.join(".gitignore"), "repo.local.toml\n")
+        .into_diagnostic()
+        .context("adding default .gitignore")?;
+
     log::info!("Repo initialized at {:?}", args.repo);
 
     Ok(())

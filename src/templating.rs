@@ -11,11 +11,18 @@ pub fn engine<'a>() -> Handlebars<'a> {
     hb
 }
 
-pub fn context<'a>() -> &'a ContextData {
+pub fn context<'a, T: Serialize>(ctx: T) -> WrappedContext<'a, T> {
     lazy_static! {
         static ref CTX: ContextData = ContextData::default();
     }
-    &*CTX
+    WrappedContext { data: &*CTX, ctx }
+}
+
+#[derive(Serialize)]
+pub struct WrappedContext<'a, T: Serialize> {
+    #[serde(flatten)]
+    data: &'a ContextData,
+    ctx: T,
 }
 
 #[derive(Clone, Debug, Serialize, Default)]
