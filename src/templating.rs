@@ -1,11 +1,36 @@
-use std::{env, path::PathBuf};
+use std::{
+    env,
+    fs::File,
+    io::BufWriter,
+    path::{Path, PathBuf},
+};
 
 use handlebars::Handlebars;
 use handlebars_switch::SwitchHelper;
 use lazy_static::lazy_static;
+use miette::{Context, IntoDiagnostic, Result};
 use serde::Serialize;
 
-pub fn engine<'a>() -> Handlebars<'a> {
+pub fn render_to_file<T: Serialize>(path: &Path, template: &str, ctx: T) -> Result<()> {
+    let file = File::create(path)
+        .into_diagnostic()
+        .context("creating file")?;
+    let writer = BufWriter::new(file);
+    engine()
+        .render_template_to_write(template, &context(ctx), writer)
+        .into_diagnostic()
+        .context("rendering to path")?;
+    Ok(())
+}
+
+pub fn render<T: Serialize>(template: &str, ctx: T) -> Result<String> {
+    engine()
+        .render_template(template, &context(ctx))
+        .into_diagnostic()
+        .context("rendering to path")
+}
+
+fn engine<'a>() -> Handlebars<'a> {
     let mut hb = Handlebars::new();
     hb.register_helper("switch", Box::new(SwitchHelper));
     hb

@@ -1,6 +1,6 @@
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use miette::{bail, Context, IntoDiagnostic, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{
     env,
     fs::{self},
@@ -25,10 +25,14 @@ impl SiloRepo {
         if !path.try_exists().into_diagnostic()? {
             bail!("The repository {path:?} does not exist");
         }
+        let config = read_config(path)?;
 
         Ok(Self {
-            config: read_config(path)?,
-            root: DirEntry::parse(Rc::new(ParseContext::default()), path.to_owned())?,
+            root: DirEntry::parse(
+                Rc::new(ParseContext::new(GlobSet::empty(), config.clone())),
+                path.to_owned(),
+            )?,
+            config,
         })
     }
 
@@ -45,19 +49,12 @@ impl SiloRepo {
 
 pub struct ParseContext {
     ignored: GlobSet,
+    config: SiloConfig,
 }
 
 impl ParseContext {
-    pub fn new(ignored: GlobSet) -> Self {
-        Self { ignored }
-    }
-}
-
-impl Default for ParseContext {
-    fn default() -> Self {
-        Self {
-            ignored: GlobSet::empty(),
-        }
+    pub fn new(ignored: GlobSet, config: SiloConfig) -> Self {
+        Self { ignored, config }
     }
 }
 
@@ -81,7 +78,7 @@ pub enum DirEntry {
 }
 
 impl DirEntry {
-    fn parse(mut context: Rc<ParseContext>, path: PathBuf) -> Result<Self> {
+    fn parse(mut ctx: Rc<ParseContext>, path: PathBuf) -> Result<Self> {
         if path.is_dir() {
             log::debug!("Parsing directory {path:?}");
 
@@ -91,13 +88,20 @@ impl DirEntry {
             let metadata = if meta_file.exists() {
                 log::debug!("Found metadata file");
                 let metadata = RootDirData::read(&meta_file)?;
-                context = Rc::new(ParseContext::new(metadata.ignored.clone()));
+                ctx = Rc::new(ParseContext::new(
+                    metadata.ignored.clone(),
+                    ctx.config.clone(),
+                ));
 
                 Some(metadata)
             } else if meta_tmpl.exists() {
                 log::debug!("Found metadata template");
-                let metadata = RootDirData::read_template(&meta_tmpl)?;
-                context = Rc::new(ParseContext::new(metadata.ignored.clone()));
+                let metadata =
+                    RootDirData::read_template(&meta_tmpl, &ctx.config.template_context)?;
+                ctx = Rc::new(ParseContext::new(
+                    metadata.ignored.clone(),
+                    ctx.config.clone(),
+                ));
 
                 Some(metadata)
             } else {
@@ -112,8 +116,8 @@ impl DirEntry {
                 let entry_path = read_entry.path();
                 let test_path = entry_path.strip_prefix(&path).into_diagnostic()?;
 
-                if !IGNORED_PATHS.is_match(&test_path) && !context.ignored.is_match(&test_path) {
-                    children.push(DirEntry::parse(context.clone(), entry_path)?);
+                if !IGNORED_PATHS.is_match(&test_path) && !ctx.ignored.is_match(&test_path) {
+                    children.push(DirEntry::parse(ctx.clone(), entry_path)?);
                 } else {
                     log::debug!("Entry {entry_path:?} is ignored")
                 }
@@ -152,14 +156,7 @@ impl DirEntry {
                 Ok(())
             }
             DirEntry::Root(_, data, children) => {
-                let engine = templating::engine();
-                let rendered_path = engine
-                    .render_template(
-                        &data.path,
-                        &templating::context(&ctx.config.template_context),
-                    )
-                    .into_diagnostic()
-                    .with_context(|| format!("render template {}", data.path))?;
+                let rendered_path = templating::render(&data.path, &ctx.config.template_context)?;
 
                 let cwd = PathBuf::from(rendered_path);
 
@@ -201,22 +198,12 @@ impl FileEntry {
                 log::debug!("Processing template {path:?}");
                 let contents = fs::read_to_string(path).into_diagnostic()?;
 
-                let rendered = templating::engine()
-                    .render_template(
-                        &contents,
-                        &templating::context(&ctx.config.template_context),
-                    )
-                    .into_diagnostic()
-                    .with_context(|| format!("rendering template {path:?}"))?;
-
                 let new_path = path.with_extension("");
                 let filename = new_path.file_name().unwrap();
                 let dest = cwd.join(filename);
-                log::info!("Writing {path:?} -> {dest:?}");
 
-                fs::write(&dest, rendered)
-                    .into_diagnostic()
-                    .with_context(|| format!("write to destination {dest:?}"))?;
+                templating::render_to_file(&dest, &contents, &ctx.config.template_context)?;
+                log::info!("Render {path:?} -> {dest:?}");
             }
             FileEntry::Plain(path) => {
                 let filename = path.file_name().unwrap();
@@ -250,14 +237,11 @@ impl RootDirData {
             .with_context(|| format!("parsing metadata file {path:?}"))
     }
 
-    fn read_template(path: &Path) -> Result<Self> {
+    fn read_template<T: Serialize>(path: &Path, ctx: T) -> Result<Self> {
         let contents = fs::read_to_string(path)
             .into_diagnostic()
             .with_context(|| format!("reading metadata file {path:?}"))?;
-        let rendered = templating::engine()
-            .render_template(&contents, &templating::context(()))
-            .into_diagnostic()
-            .with_context(|| format!("processing template {path:?}"))?;
+        let rendered = templating::render(&contents, ctx)?;
         toml::from_str(&rendered)
             .into_diagnostic()
             .with_context(|| format!("parsing metadata file {path:?}"))
