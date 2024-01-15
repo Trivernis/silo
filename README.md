@@ -52,6 +52,27 @@ silo --repo /path/to/repo apply
 which will process and copy over all the configuration files of that repository.
 
 
+### Configuring Silo
+
+Silo has several configuration files that are applied in the following order:
+
+- `~/.config/silo.toml`  (or the equivalent on windows)
+- `repo.toml` in the repo's folder
+- `repo.local.toml` in the repo's folder (specific to the system. Don't commit this file)
+- environment variables with prefix `SILO_`
+
+A configuration file looks like this (with all the defaults):
+
+```toml
+# The diff tool that is being used when displaying changes and prompting for confirmation
+diff_tool = "diff"
+
+# Additional context that is available in all handlebar templates under the `ctx` variable
+[template_context]
+# hello = "world"
+```
+
+
 ### License
 
 CNPL-v7+
