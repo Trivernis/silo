@@ -5,6 +5,7 @@ use handlebars_switch::SwitchHelper;
 use lazy_static::lazy_static;
 use miette::{Context, IntoDiagnostic, Result};
 use serde::Serialize;
+mod helpers;
 
 pub fn render<T: Serialize>(template: &str, ctx: T) -> Result<String> {
     engine()
@@ -16,6 +17,14 @@ pub fn render<T: Serialize>(template: &str, ctx: T) -> Result<String> {
 fn engine<'a>() -> Handlebars<'a> {
     let mut hb = Handlebars::new();
     hb.register_helper("switch", Box::new(SwitchHelper));
+    hb.register_helper(
+        "if-installed",
+        Box::new(helpers::IfInstalledHelper { positive: true }),
+    );
+    hb.register_helper(
+        "if-not-installed",
+        Box::new(helpers::IfInstalledHelper { positive: false }),
+    );
     hb
 }
 

@@ -44,7 +44,7 @@ fn init_logging(verbose: bool) {
     builder
         .filter_module("handlebars", log::LevelFilter::Error)
         .filter_module("rustls", log::LevelFilter::Error)
-        .filter_module("", log::LevelFilter::Error)
+        .filter_module("reqwest", log::LevelFilter::Error)
         .init();
 }
 

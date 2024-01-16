@@ -29,6 +29,7 @@ serde_json = "1.0.111"
 sys-info = "0.9.1"
 tempfile = "3.9.0"
 toml = "0.8.8"
+which = "5.0.0"
 
 # The profile that 'cargo dist' will build with
 [profile.dist]
