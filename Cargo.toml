@@ -10,7 +10,7 @@ license-file = "LICENSE.md"
 
 [dependencies]
 chksum = "0.3.0"
-clap = { version = "4.4.14", features = ["derive", "env"] }
+clap = { version = "4.4.17", features = ["derive", "env"] }
 dialoguer = "0.11.0"
 dirs = "5.0.1"
 figment = { version = "0.10.13", features = ["toml", "env"] }
