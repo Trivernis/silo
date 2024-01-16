@@ -1,7 +1,8 @@
-use std::fs;
+use std::{fs, sync::atomic::AtomicBool};
 
-use args::Args;
+use args::{Args, InitArgs};
 use clap::Parser;
+use gix::progress::Discard;
 use miette::{Context, IntoDiagnostic, Result};
 use repo::SiloRepo;
 
@@ -15,7 +16,7 @@ fn main() -> Result<()> {
     init_logging(args.verbose);
 
     match &args.command {
-        args::Command::Init => init(&args)?,
+        args::Command::Init(init_args) => init(&args, &init_args)?,
         args::Command::Apply => apply(&args)?,
         args::Command::Context => {
             let repo = SiloRepo::open(&args.repo)?;
@@ -41,7 +42,9 @@ fn init_logging(verbose: bool) {
         builder.filter_level(log::LevelFilter::Info)
     };
     builder
-        .filter_module("handlebars", log::LevelFilter::Off)
+        .filter_module("handlebars", log::LevelFilter::Error)
+        .filter_module("rustls", log::LevelFilter::Error)
+        .filter_module("", log::LevelFilter::Error)
         .init();
 }
 
@@ -53,7 +56,15 @@ fn apply(args: &Args) -> Result<()> {
     Ok(())
 }
 
-fn init(args: &Args) -> Result<()> {
+fn init(args: &Args, init_args: &InitArgs) -> Result<()> {
+    if let Some(remote) = init_args.remote.as_ref() {
+        init_remote(args, init_args, remote)
+    } else {
+        init_local(args)
+    }
+}
+
+fn init_local(args: &Args) -> Result<()> {
     if !args.repo.exists() {
         fs::create_dir_all(&args.repo)
             .into_diagnostic()
@@ -68,5 +79,23 @@ fn init(args: &Args) -> Result<()> {
 
     log::info!("Repo initialized at {:?}", args.repo);
 
+    Ok(())
+}
+
+fn init_remote(args: &Args, _init_args: &InitArgs, remote: &str) -> Result<()> {
+    log::info!("Cloning {remote} into {:?}", args.repo);
+    let interrupt = AtomicBool::new(false);
+    gix::prepare_clone(remote, &args.repo)
+        .into_diagnostic()
+        .context("clone repo")?
+        .fetch_then_checkout(Discard, &interrupt)
+        .into_diagnostic()
+        .context("fetch repo")?
+        .0
+        .main_worktree(Discard, &interrupt)
+        .into_diagnostic()
+        .context("checkout main")?
+        .0;
+    log::info!("Repo initialized at {:?}", args.repo);
     Ok(())
 }

@@ -16,7 +16,7 @@ clap = { version = "4.4.17", features = ["derive", "env"] }
 dialoguer = "0.11.0"
 dirs = "5.0.1"
 figment = { version = "0.10.13", features = ["toml", "env"] }
-gix = { version = "0.57.1", default-features = false, features = ["basic", "index", "worktree-mutation", "revision"] }
+gix = { version = "0.57.1", default-features = false, features = ["basic", "index", "worktree-mutation", "revision", "blocking-network-client", "prodash", "blocking-http-transport-reqwest-rust-tls"] }
 globset = { version = "0.4.14", features = ["serde", "serde1"] }
 handlebars = "5.0.0"
 handlebars_switch = "0.6.0"

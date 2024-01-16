@@ -17,7 +17,7 @@ pub struct Args {
 #[derive(Clone, Debug, Subcommand)]
 pub enum Command {
     /// Initialize a silo repository
-    Init,
+    Init(InitArgs),
     /// Applies the configuration stored in a silo repo
     Apply,
 
@@ -26,6 +26,13 @@ pub enum Command {
 
     /// Print the path of the repo
     Repo,
+}
+
+#[derive(Clone, Debug, Parser)]
+pub struct InitArgs {
+    /// Init using a remote repository
+    #[arg()]
+    pub remote: Option<String>,
 }
 
 fn default_repo() -> &'static str {
