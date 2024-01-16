@@ -18,6 +18,12 @@ silo --repo /path/to/repo init
 This creates the repo directory and initializes a git repository.
 If no `--repo` argument is passed, it will default to `$HOME/.local/share/silo` or `$HOME/AppData/Roaming/silo`.
 
+If you have an existing repo somewhere you can do
+```nu
+silo --repo /path/to/repo init <remote-url>
+```
+which will clone the remote repository to the given path.
+
 ### Add configuration files
 
 Now add some configuration files you want to track.
