@@ -59,7 +59,7 @@ fn init(args: &Args) -> Result<()> {
             .into_diagnostic()
             .with_context(|| format!("creating folder for repository {:?}", args.repo))?;
     }
-    let _gitrepo = git2::Repository::init(&args.repo)
+    let _gitrepo = gix::init(&args.repo)
         .into_diagnostic()
         .with_context(|| format!("initializing repository at {:?}", args.repo))?;
     fs::write(args.repo.join(".gitignore"), "repo.local.toml\n")
