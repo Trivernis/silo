@@ -470,6 +470,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "dot-silo"
+version = "0.1.0"
+dependencies = [
+ "chksum",
+ "clap",
+ "dialoguer",
+ "dirs",
+ "figment",
+ "git2",
+ "globset",
+ "handlebars",
+ "handlebars_switch",
+ "lazy_static",
+ "log",
+ "miette",
+ "pretty_env_logger",
+ "serde",
+ "serde_json",
+ "sys-info",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "encode_unicode"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1114,30 +1138,6 @@ name = "shell-words"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
-
-[[package]]
-name = "silo"
-version = "0.1.0"
-dependencies = [
- "chksum",
- "clap",
- "dialoguer",
- "dirs",
- "figment",
- "git2",
- "globset",
- "handlebars",
- "handlebars_switch",
- "lazy_static",
- "log",
- "miette",
- "pretty_env_logger",
- "serde",
- "serde_json",
- "sys-info",
- "tempfile",
- "toml",
-]
 
 [[package]]
 name = "smawk"

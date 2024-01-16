@@ -1,8 +1,10 @@
 [package]
-name = "silo"
+name = "dot-silo"
 version = "0.1.0"
 edition = "2021"
 repository = "https://github.com/Trivernis/silo"
+description = "A dotfile manager"
+license-file = "LICENSE.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
