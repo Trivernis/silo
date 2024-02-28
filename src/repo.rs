@@ -42,9 +42,7 @@ impl SiloRepo {
     }
 
     pub fn apply(&self) -> Result<()> {
-        let cwd = env::current_dir()
-            .into_diagnostic()
-            .context("get current dir")?;
+        let cwd = dirs::home_dir().unwrap_or(env::current_dir().into_diagnostic()?);
         let ctx = ApplyContext {
             config: self.config.clone(),
         };
@@ -141,16 +139,14 @@ impl DirEntry {
 
     fn apply(&self, ctx: &ApplyContext, cwd: &Path) -> Result<()> {
         match self {
-            DirEntry::File(file) => file.apply(ctx, cwd),
+            DirEntry::File(file) => {
+                ensure_cwd(cwd)?;
+                file.apply(ctx, cwd)
+            }
             DirEntry::Dir(p, children) => {
                 let cwd = if p != cwd {
                     let cwd = cwd.join(p.file_name().unwrap());
-                    if !cwd.exists() {
-                        log::info!("Creating {cwd:?}");
-                        fs::create_dir_all(&cwd)
-                            .into_diagnostic()
-                            .with_context(|| format!("Creating directory {cwd:?}"))?;
-                    }
+                    ensure_cwd(&cwd)?;
                     cwd
                 } else {
                     p.to_owned()
@@ -162,15 +158,8 @@ impl DirEntry {
             }
             DirEntry::Root(_, data, children) => {
                 let rendered_path = templating::render(&data.path, &ctx.config.template_context)?;
-
                 let cwd = PathBuf::from(rendered_path);
 
-                if !cwd.exists() {
-                    log::info!("Creating {cwd:?}");
-                    fs::create_dir_all(&cwd)
-                        .into_diagnostic()
-                        .with_context(|| format!("Creating directory {cwd:?}"))?;
-                }
                 for child in children {
                     child.apply(ctx, &cwd)?;
                 }
@@ -302,4 +291,14 @@ fn confirm_write(diff_tool: &str, a: &Path, b: &Path) -> Result<bool> {
         .with_prompt("Do you want to apply these changes?")
         .interact()
         .into_diagnostic()
+}
+
+fn ensure_cwd(cwd: &Path) -> Result<(), miette::ErrReport> {
+    if cwd.exists() {
+        return Ok(());
+    }
+    log::info!("Creating {cwd:?}");
+    fs::create_dir_all(&cwd)
+        .into_diagnostic()
+        .with_context(|| format!("Creating directory {cwd:?}"))
 }
