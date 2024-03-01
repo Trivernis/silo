@@ -3,13 +3,13 @@ use std::{
     io::Write,
     mem,
     path::{Path, PathBuf},
+    process::Command,
 };
 
 use chksum::sha2_256::chksum;
 use dialoguer::Confirm;
 
 use miette::{Context, IntoDiagnostic, Result};
-use prettydiff::diff_lines;
 
 use tempfile::NamedTempFile;
 
@@ -17,12 +17,14 @@ use super::FsAccess;
 
 pub struct BufferedFsAccess {
     mappings: Vec<(NamedTempFile, PathBuf)>,
+    diff_tool: String,
 }
 
 impl BufferedFsAccess {
-    pub fn new() -> Self {
+    pub fn with_difftool(diff_tool: String) -> Self {
         Self {
             mappings: Vec::new(),
+            diff_tool,
         }
     }
 }
@@ -57,7 +59,7 @@ impl FsAccess for BufferedFsAccess {
         let mut drop_list = Vec::new();
 
         for (tmp, dst) in mappings {
-            if confirm_write(tmp.path(), &dst)? {
+            if confirm_write(&self.diff_tool, tmp.path(), &dst)? {
                 ensure_parent(dst.parent().unwrap())?;
                 fs::copy(tmp.path(), &dst)
                     .into_diagnostic()
@@ -80,7 +82,7 @@ fn tmpfile() -> Result<NamedTempFile> {
         .context("failed to create tmp file")
 }
 
-fn confirm_write(new: &Path, old: &Path) -> Result<bool> {
+fn confirm_write(diff_tool: &str, new: &Path, old: &Path) -> Result<bool> {
     if !old.exists() {
         return Ok(true);
     }
@@ -95,17 +97,17 @@ fn confirm_write(new: &Path, old: &Path) -> Result<bool> {
         return Ok(true);
     }
 
-    let cont_new = fs::read_to_string(new)
+    Command::new(diff_tool)
+        .arg(old)
+        .arg(new)
+        .spawn()
         .into_diagnostic()
-        .context("reading a")?;
-    let cont_old = fs::read_to_string(old)
+        .context("spawn diff tool")?
+        .wait()
         .into_diagnostic()
-        .context("reading b")?;
+        .context("wait for diff tool to exit")?;
+    println!();
 
-    println!(
-        "\n=== Changes to {old:?}\n{}\n=== End of Changes\n",
-        diff_lines(&cont_old, &cont_new)
-    );
     Confirm::new()
         .with_prompt("Do you want to apply these changes?")
         .interact()

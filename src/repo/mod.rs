@@ -34,7 +34,9 @@ impl SiloRepo {
 
     pub fn apply(&self) -> Result<()> {
         let cwd = dirs::home_dir().unwrap_or(env::current_dir().into_diagnostic()?);
-        let fs_access: Box<dyn FsAccess> = Box::new(BufferedFsAccess::new());
+        let fs_access: Box<dyn FsAccess> = Box::new(BufferedFsAccess::with_difftool(
+            self.config.diff_tool.to_owned(),
+        ));
         let mut ctx = ApplyContext {
             config: self.config.clone(),
             fs: fs_access,

@@ -6,6 +6,7 @@ use figment::{
 };
 use miette::{Context, IntoDiagnostic, Result};
 use serde::{Deserialize, Serialize};
+use which::which;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SiloConfig {
@@ -18,10 +19,19 @@ pub struct SiloConfig {
 impl Default for SiloConfig {
     fn default() -> Self {
         Self {
-            diff_tool: String::from("diff"),
+            diff_tool: detect_difftool(),
             template_context: HashMap::new(),
         }
     }
+}
+
+fn detect_difftool() -> String {
+    ["difft", "delta", "diff"]
+        .into_iter()
+        .filter(|t| which(t).is_ok())
+        .map(String::from)
+        .next()
+        .unwrap_or_else(|| String::from("diff"))
 }
 
 /// Read the configuration file from the user config directory
