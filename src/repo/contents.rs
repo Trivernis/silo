@@ -1,68 +1,36 @@
-use chksum::sha2_256::chksum;
-use dialoguer::Confirm;
-use globset::{Glob, GlobSet, GlobSetBuilder};
-use miette::{bail, Context, IntoDiagnostic, Result};
-use serde::{Deserialize, Serialize};
 use std::{
-    env,
     fs::{self, File},
     io::Write,
     path::{Path, PathBuf},
     process::Command,
     rc::Rc,
 };
+
+use crate::templating;
+
+use super::{ApplyContext, ParseContext};
+use chksum::sha2_256::chksum;
+use dialoguer::Confirm;
+use globset::{Glob, GlobSet, GlobSetBuilder};
+use lazy_static::lazy_static;
+use miette::{Context, IntoDiagnostic, Result};
+use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 
-use crate::{
-    config::{read_config, SiloConfig},
-    templating,
-};
-use lazy_static::lazy_static;
-
 #[derive(Clone, Debug)]
-pub struct SiloRepo {
+pub struct Contents {
     pub root: DirEntry,
-    pub config: SiloConfig,
 }
 
-impl SiloRepo {
-    pub fn open(path: &Path) -> Result<Self> {
-        if !path.try_exists().into_diagnostic()? {
-            bail!("The repository {path:?} does not exist");
-        }
-        let config = read_config(path)?;
-
-        Ok(Self {
-            root: DirEntry::parse(
-                Rc::new(ParseContext::new(GlobSet::empty(), config.clone())),
-                path.to_owned(),
-            )?,
-            config,
-        })
+impl Contents {
+    pub fn parse(pctx: ParseContext, path: PathBuf) -> Result<Self> {
+        let root = DirEntry::parse(Rc::new(pctx), path.to_owned())?;
+        Ok(Self { root })
     }
 
-    pub fn apply(&self) -> Result<()> {
-        let cwd = dirs::home_dir().unwrap_or(env::current_dir().into_diagnostic()?);
-        let ctx = ApplyContext {
-            config: self.config.clone(),
-        };
-        self.root.apply(&ctx, &cwd)
+    pub fn apply(&self, actx: &ApplyContext, cwd: &Path) -> Result<()> {
+        self.root.apply(actx, cwd)
     }
-}
-
-pub struct ParseContext {
-    ignored: GlobSet,
-    config: SiloConfig,
-}
-
-impl ParseContext {
-    pub fn new(ignored: GlobSet, config: SiloConfig) -> Self {
-        Self { ignored, config }
-    }
-}
-
-pub struct ApplyContext {
-    config: SiloConfig,
 }
 
 lazy_static! {
