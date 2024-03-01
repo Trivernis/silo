@@ -156,7 +156,9 @@ impl FileEntry {
                 let dest = cwd.join(filename);
                 let render_contents = templating::render(&contents, &ctx.config.template_context)?;
 
-                ctx.fs.write_all(&dest, &render_contents.into_bytes())?
+                ctx.fs.write_all(&dest, &render_contents.into_bytes())?;
+                ctx.fs
+                    .set_permissions(&dest, fs::metadata(path).into_diagnostic()?.permissions())?;
             }
             FileEntry::Plain(path) => {
                 let filename = path.file_name().unwrap();

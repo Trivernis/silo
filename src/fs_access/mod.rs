@@ -1,5 +1,5 @@
 use miette::Result;
-use std::path::Path;
+use std::{fs::Permissions, path::Path};
 
 mod buffered;
 pub use buffered::BufferedFsAccess;
@@ -10,6 +10,9 @@ pub trait FsAccess {
 
     /// Copy src to dst
     fn copy(&mut self, src: &Path, dst: &Path) -> Result<()>;
+
+    /// Sets permissions on a file
+    fn set_permissions(&mut self, path: &Path, perm: Permissions) -> Result<()>;
 
     /// Persist the changes if necessary
     fn persist(&mut self) -> Result<()>;

@@ -54,6 +54,18 @@ impl FsAccess for BufferedFsAccess {
         Ok(())
     }
 
+    fn set_permissions(&mut self, path: &Path, perm: fs::Permissions) -> Result<()> {
+        let found_entry = self.mappings.iter().find(|(_, p)| p == path);
+
+        if let Some(entry) = found_entry {
+            fs::set_permissions(entry.0.path(), perm.clone())
+                .into_diagnostic()
+                .with_context(|| format!("Failed to set permissions {perm:?} on {path:?}"))?;
+        }
+
+        Ok(())
+    }
+
     fn persist(&mut self) -> Result<()> {
         let mappings = mem::take(&mut self.mappings);
         let mut drop_list = Vec::new();
