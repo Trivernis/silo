@@ -79,6 +79,14 @@ diff_tool = "diff"
 ```
 
 
+### Advanced
+
+#### File permissions
+
+File permissions are persisted the way git stored them. This is true for templates as well. So a template with 
+execute permission will result in a rendered file with the same permission.
+
+
 ### License
 
 CNPL-v7+
