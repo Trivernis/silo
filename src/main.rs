@@ -8,6 +8,7 @@ use repo::SiloRepo;
 
 mod args;
 mod config;
+mod fs_access;
 mod repo;
 mod templating;
 

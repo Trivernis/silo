@@ -5,7 +5,10 @@ use miette::{bail, IntoDiagnostic, Result};
 
 use std::{env, path::Path};
 
-use crate::config::{read_config, SiloConfig};
+use crate::{
+    config::{read_config, SiloConfig},
+    fs_access::{BufferedFsAccess, FsAccess},
+};
 
 use self::contents::Contents;
 
@@ -31,10 +34,13 @@ impl SiloRepo {
 
     pub fn apply(&self) -> Result<()> {
         let cwd = dirs::home_dir().unwrap_or(env::current_dir().into_diagnostic()?);
-        let ctx = ApplyContext {
+        let fs_access: Box<dyn FsAccess> = Box::new(BufferedFsAccess::new());
+        let mut ctx = ApplyContext {
             config: self.config.clone(),
+            fs: fs_access,
         };
-        self.contents.apply(&ctx, &cwd)
+        self.contents.apply(&mut ctx, &cwd)?;
+        ctx.fs.persist()
     }
 }
 
@@ -51,4 +57,5 @@ impl ParseContext {
 
 pub struct ApplyContext {
     config: SiloConfig,
+    fs: Box<dyn FsAccess>,
 }

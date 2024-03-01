@@ -1,21 +1,16 @@
 use std::{
-    fs::{self, File},
-    io::Write,
+    fs::{self},
     path::{Path, PathBuf},
-    process::Command,
     rc::Rc,
 };
 
 use crate::templating;
 
 use super::{ApplyContext, ParseContext};
-use chksum::sha2_256::chksum;
-use dialoguer::Confirm;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use lazy_static::lazy_static;
 use miette::{Context, IntoDiagnostic, Result};
 use serde::{Deserialize, Serialize};
-use tempfile::NamedTempFile;
 
 #[derive(Clone, Debug)]
 pub struct Contents {
@@ -28,7 +23,7 @@ impl Contents {
         Ok(Self { root })
     }
 
-    pub fn apply(&self, actx: &ApplyContext, cwd: &Path) -> Result<()> {
+    pub fn apply(&self, actx: &mut ApplyContext, cwd: &Path) -> Result<()> {
         self.root.apply(actx, cwd)
     }
 }
@@ -105,17 +100,12 @@ impl DirEntry {
         }
     }
 
-    fn apply(&self, ctx: &ApplyContext, cwd: &Path) -> Result<()> {
+    fn apply(&self, ctx: &mut ApplyContext, cwd: &Path) -> Result<()> {
         match self {
-            DirEntry::File(file) => {
-                ensure_cwd(cwd)?;
-                file.apply(ctx, cwd)
-            }
+            DirEntry::File(file) => file.apply(ctx, cwd),
             DirEntry::Dir(p, children) => {
                 let cwd = if p != cwd {
-                    let cwd = cwd.join(p.file_name().unwrap());
-                    ensure_cwd(&cwd)?;
-                    cwd
+                    cwd.join(p.file_name().unwrap())
                 } else {
                     p.to_owned()
                 };
@@ -154,39 +144,24 @@ impl FileEntry {
         }
     }
 
-    fn apply(&self, ctx: &ApplyContext, cwd: &Path) -> Result<()> {
+    fn apply(&self, ctx: &mut ApplyContext, cwd: &Path) -> Result<()> {
         match self {
             FileEntry::Template(path) => {
                 log::debug!("Processing template {path:?}");
-                let contents = fs::read_to_string(path).into_diagnostic()?;
 
+                let contents = fs::read_to_string(path).into_diagnostic()?;
                 let new_path = path.with_extension("");
                 let filename = new_path.file_name().unwrap();
-                let dest = cwd.join(filename);
 
+                let dest = cwd.join(filename);
                 let render_contents = templating::render(&contents, &ctx.config.template_context)?;
 
-                if confirm_changes(&ctx.config.diff_tool, &render_contents, &dest)? {
-                    log::info!("Render {path:?} -> {dest:?}");
-                    fs::write(&dest, render_contents)
-                        .into_diagnostic()
-                        .context("writing changes")?;
-                } else {
-                    log::info!("Skipping {path:?} !-> {dest:?}");
-                }
+                ctx.fs.write_all(&dest, &render_contents.into_bytes())?
             }
             FileEntry::Plain(path) => {
                 let filename = path.file_name().unwrap();
                 let dest = cwd.join(filename);
-
-                if confirm_write(&ctx.config.diff_tool, path, &dest)? {
-                    log::info!("Copying {path:?} -> {dest:?}");
-                    fs::copy(path, &dest)
-                        .into_diagnostic()
-                        .with_context(|| format!("copy {path:?} to {dest:?}"))?;
-                } else {
-                    log::info!("Skipping {path:?} !-> {dest:?}");
-                }
+                ctx.fs.copy(path, &dest)?;
             }
         }
 
@@ -220,53 +195,4 @@ impl RootDirData {
             .into_diagnostic()
             .with_context(|| format!("parsing metadata file {path:?}"))
     }
-}
-
-fn confirm_changes(diff_tool: &str, changes: &str, original: &Path) -> Result<bool> {
-    let mut tmp = NamedTempFile::new()
-        .into_diagnostic()
-        .context("create tmp file")?;
-    tmp.write_all(changes.as_bytes())
-        .into_diagnostic()
-        .context("write tmp file")?;
-    confirm_write(diff_tool, &tmp.into_temp_path(), original)
-}
-
-fn confirm_write(diff_tool: &str, a: &Path, b: &Path) -> Result<bool> {
-    if !b.exists() {
-        return Ok(true);
-    }
-    let f1 = File::open(a)
-        .into_diagnostic()
-        .with_context(|| format!("opening file {a:?}"))?;
-    let f2 = File::open(b)
-        .into_diagnostic()
-        .with_context(|| format!("opening file {b:?}"))?;
-
-    if chksum(f1).into_diagnostic()?.as_bytes() == chksum(f2).into_diagnostic()?.as_bytes() {
-        return Ok(true);
-    }
-    Command::new(diff_tool)
-        .arg(b)
-        .arg(a)
-        .spawn()
-        .into_diagnostic()
-        .context("spawn diff tool")?
-        .wait()
-        .into_diagnostic()
-        .context("wait for diff tool to exit")?;
-    Confirm::new()
-        .with_prompt("Do you want to apply these changes?")
-        .interact()
-        .into_diagnostic()
-}
-
-fn ensure_cwd(cwd: &Path) -> Result<(), miette::ErrReport> {
-    if cwd.exists() {
-        return Ok(());
-    }
-    log::info!("Creating {cwd:?}");
-    fs::create_dir_all(&cwd)
-        .into_diagnostic()
-        .with_context(|| format!("Creating directory {cwd:?}"))
 }
