@@ -50,7 +50,7 @@ fn init_logging(verbose: bool) {
 }
 
 fn apply(args: &Args) -> Result<()> {
-    let repo = SiloRepo::open(&args.repo)?;
+    let mut repo = SiloRepo::open(&args.repo)?;
     repo.apply()?;
     log::info!("Applied all configurations in {:?}", args.repo);
 

@@ -13,18 +13,24 @@ use miette::{Context, IntoDiagnostic, Result};
 
 use tempfile::NamedTempFile;
 
+use crate::repo::hooks::{ApplyAllContext, ApplyEachContext, Hooks};
+
 use super::FsAccess;
 
 pub struct BufferedFsAccess {
+    repo: PathBuf,
     mappings: Vec<(NamedTempFile, PathBuf)>,
     diff_tool: String,
+    hooks: Hooks,
 }
 
 impl BufferedFsAccess {
-    pub fn with_difftool(diff_tool: String) -> Self {
+    pub fn new(repo: PathBuf, diff_tool: String, hooks: Hooks) -> Self {
         Self {
             mappings: Vec::new(),
+            repo,
             diff_tool,
+            hooks,
         }
     }
 }
@@ -69,13 +75,32 @@ impl FsAccess for BufferedFsAccess {
     fn persist(&mut self) -> Result<()> {
         let mappings = mem::take(&mut self.mappings);
         let mut drop_list = Vec::new();
+        let paths: Vec<_> = mappings.iter().map(|(_, p)| p.to_owned()).collect();
+
+        self.hooks.before_apply_all(ApplyAllContext {
+            repo: self.repo.clone(),
+            paths: paths.clone(),
+        })?;
 
         for (tmp, dst) in mappings {
             if confirm_write(&self.diff_tool, tmp.path(), &dst)? {
                 ensure_parent(dst.parent().unwrap())?;
+
+                self.hooks.before_apply_each(ApplyEachContext {
+                    repo: self.repo.clone(),
+                    src: tmp.path().to_owned(),
+                    dst: dst.clone(),
+                })?;
+
                 fs::copy(tmp.path(), &dst)
                     .into_diagnostic()
                     .with_context(|| format!("copying {:?} to {dst:?}", tmp.path()))?;
+
+                self.hooks.after_apply_each(ApplyEachContext {
+                    repo: self.repo.clone(),
+                    src: tmp.path().to_owned(),
+                    dst: dst.clone(),
+                })?;
                 log::info!("Updated {dst:?}");
             } else {
                 log::info!("Skipping {dst:?}");
@@ -83,6 +108,11 @@ impl FsAccess for BufferedFsAccess {
             drop_list.push(tmp);
         }
         mem::drop(drop_list);
+
+        self.hooks.after_apply_all(ApplyAllContext {
+            repo: self.repo.clone(),
+            paths,
+        })?;
 
         Ok(())
     }

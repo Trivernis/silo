@@ -40,7 +40,7 @@ Notice the use of templating for the path. The `dirs` variable contains paths sp
 `home` in this case would either be `{FOLDERID_Profile}` on Windows or `$HOME` on Linux and MacOS.
 The `ignored` setting can be used to ignore certain files using an array of glob-strings.
 
-Now add some files to the repos root directory.
+Now add some files to a directory `content` in the repo.
 Normal files get just copied over. Subdirectories are created and copied as well, unless they themselves
 contain a `dirs.toml` file that specifies a different location. 
 
@@ -86,6 +86,30 @@ diff_tool = "diff"
 File permissions are persisted the way git stored them. This is true for templates as well. So a template with 
 execute permission will result in a rendered file with the same permission.
 
+
+#### Hooks
+
+All `.nu` files in the `hooks` folder in the repos root are interpreted as hook scripts.
+Currently there's four functions that can be defined in these scripts that correspond to 
+events of the same name:
+```
+before_apply_all 
+after_apply_all
+before_apply_each  
+after_apply_each  
+```
+These functions will be called with a single argument, the event context, that can be used
+to change certain properties of files or inspect the entire list of files that are about to be written.
+For example one could change the attributes of script files with the following hook
+
+```nu
+# Make `test-2/main` executable
+def after_apply_each [ctx] {
+  if $ctx.dst =~ "test-2/main" {
+    chmod +x $ctx.dst
+  }
+}
+```
 
 ### License
 
