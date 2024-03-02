@@ -25,9 +25,14 @@ impl SiloRepo {
         }
         let config = read_config(path)?;
         let pctx = ParseContext::new(GlobSet::empty(), config.clone());
+        let content_path = path.join("content");
+
+        if !content_path.exists() {
+            bail!("No content stored in this dotfiles repo");
+        }
 
         Ok(Self {
-            contents: Contents::parse(pctx, path.to_owned())?,
+            contents: Contents::parse(pctx, content_path)?,
             config,
         })
     }
