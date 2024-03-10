@@ -43,5 +43,5 @@ fn default_repo() -> &'static str {
         .to_string_lossy()
         .into();
     }
-    &*DEFAULT_REPO
+    &DEFAULT_REPO
 }

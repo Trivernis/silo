@@ -161,7 +161,7 @@ fn ensure_parent(parent: &Path) -> Result<(), miette::ErrReport> {
         return Ok(());
     }
     log::info!("Creating {parent:?}");
-    fs::create_dir_all(&parent)
+    fs::create_dir_all(parent)
         .into_diagnostic()
         .with_context(|| format!("Creating directory {parent:?}"))
 }

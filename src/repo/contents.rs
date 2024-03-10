@@ -96,7 +96,7 @@ impl DirEntry {
                 let entry_path = read_entry.path();
                 let test_path = entry_path.strip_prefix(&path).into_diagnostic()?;
 
-                if !IGNORED_PATHS.is_match(&test_path) && !ctx.ignored.is_match(&test_path) {
+                if !IGNORED_PATHS.is_match(test_path) && !ctx.ignored.is_match(test_path) {
                     children.push(DirEntry::parse(ctx.clone(), entry_path)?);
                 } else {
                     log::debug!("Entry {entry_path:?} is ignored")

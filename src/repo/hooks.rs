@@ -45,10 +45,10 @@ impl Hooks {
 
     pub fn parse(path: &Path) -> Result<Self> {
         log::debug!("Parsing hooks in {path:?}");
-        let mut readdir = fs::read_dir(path).into_diagnostic()?;
+        let readdir = fs::read_dir(path).into_diagnostic()?;
         let mut scripts = Vec::new();
 
-        while let Some(entry) = readdir.next() {
+        for entry in readdir {
             let path = entry.into_diagnostic()?.path();
 
             if path.is_file() && path.extension().is_some_and(|e| e == "nu") {

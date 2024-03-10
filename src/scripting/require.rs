@@ -12,10 +12,10 @@ pub fn register_require(lua: &Lua) -> Result<()> {
     Ok(())
 }
 
-fn lua_require<'a>(lua: &'a Lua, module: String) -> Result<Table<'a>> {
+fn lua_require(lua: &Lua, module: String) -> Result<Table<'_>> {
     match module.as_str() {
-        "silo" => silo_module(&lua),
-        "log" => log_module(&lua),
+        "silo" => silo_module(lua),
+        "log" => log_module(lua),
         _ => {
             let old_require: mlua::Function = lua.globals().get("old_require")?;
             old_require.call(module)

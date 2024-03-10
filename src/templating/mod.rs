@@ -32,7 +32,7 @@ pub fn context<'a, T: Serialize>(ctx: T) -> WrappedContext<'a, T> {
     lazy_static! {
         static ref CTX: ContextData = ContextData::default();
     }
-    WrappedContext { data: &*CTX, ctx }
+    WrappedContext { data: &CTX, ctx }
 }
 
 #[derive(Serialize)]

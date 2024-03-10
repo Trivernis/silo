@@ -20,7 +20,7 @@ fn main() -> Result<()> {
     init_logging(args.verbose);
 
     match &args.command {
-        args::Command::Init(init_args) => init(&args, &init_args)?,
+        args::Command::Init(init_args) => init(&args, init_args)?,
         args::Command::Apply => apply(&args)?,
         args::Command::Context => {
             let repo = SiloRepo::open(&args.repo)?;
@@ -98,8 +98,7 @@ fn init_remote(args: &Args, _init_args: &InitArgs, remote: &str) -> Result<()> {
         .0
         .main_worktree(Discard, &interrupt)
         .into_diagnostic()
-        .context("checkout main")?
-        .0;
+        .context("checkout main")?;
     log::info!("Repo initialized at {:?}", args.repo);
     Ok(())
 }

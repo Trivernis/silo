@@ -35,7 +35,6 @@ impl HelperDef for IfInstalledHelper {
                 .ok_or_else(|| RenderErrorReason::BlockContentRequired)?
                 .render(r, ctx, rc, out)
                 .map_err(RenderError::from)
-                .into()
         } else {
             log::debug!("`{bin}` is not installed");
             HelperResult::Ok(())
