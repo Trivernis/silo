@@ -10,7 +10,10 @@ mod args;
 mod config;
 mod fs_access;
 mod repo;
+mod scripting;
 mod templating;
+
+pub(crate) mod utils;
 
 fn main() -> Result<()> {
     let args: Args = Args::parse();

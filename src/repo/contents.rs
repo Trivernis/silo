@@ -4,12 +4,13 @@ use std::{
     rc::Rc,
 };
 
-use crate::templating;
+use crate::{scripting::create_lua, templating, utils::Describe};
 
 use super::{ApplyContext, ParseContext};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use lazy_static::lazy_static;
 use miette::{Context, IntoDiagnostic, Result};
+use mlua::LuaSerdeExt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
@@ -32,6 +33,7 @@ lazy_static! {
     static ref IGNORED_PATHS: GlobSet = GlobSetBuilder::new()
         .add(Glob::new("**/.git").unwrap())
         .add(Glob::new("**/dir.{toml,toml.tmpl}").unwrap())
+        .add(Glob::new("**/silo.{dir,config}.lua").unwrap())
         .build()
         .unwrap();
 }
@@ -50,9 +52,20 @@ impl DirEntry {
 
             let meta_file = path.join("dir.toml");
             let meta_tmpl = path.join("dir.toml.tmpl");
+            let script_tmpl = path.join("silo.dir.lua");
 
-            let metadata = if meta_file.exists() {
+            let metadata = if script_tmpl.exists() {
+                log::debug!("Found script template");
+                let metadata = RootDirData::read_lua(&script_tmpl, &ctx.config.template_context)?;
+                ctx = Rc::new(ParseContext::new(
+                    metadata.ignored.clone(),
+                    ctx.config.clone(),
+                ));
+
+                Some(metadata)
+            } else if meta_file.exists() {
                 log::debug!("Found metadata file");
+                log::warn!("Old toml metadata files are deprecated. Please migrate to the `silo.dir.lua` syntax");
                 let metadata = RootDirData::read(&meta_file)?;
                 ctx = Rc::new(ParseContext::new(
                     metadata.ignored.clone(),
@@ -62,6 +75,7 @@ impl DirEntry {
                 Some(metadata)
             } else if meta_tmpl.exists() {
                 log::debug!("Found metadata template");
+                log::warn!("Old template metadata files are deprecated. Please migrate to the `silo.dir.lua` syntax");
                 let metadata =
                     RootDirData::read_template(&meta_tmpl, &ctx.config.template_context)?;
                 ctx = Rc::new(ParseContext::new(
@@ -196,5 +210,16 @@ impl RootDirData {
         toml::from_str(&rendered)
             .into_diagnostic()
             .with_context(|| format!("parsing metadata file {path:?}"))
+    }
+
+    fn read_lua<T: Serialize>(path: &Path, ctx: T) -> Result<Self> {
+        let contents =
+            fs::read_to_string(path).with_describe(|| format!("reading metadata file {path:?}"))?;
+        let lua = create_lua(&ctx)?;
+        let cfg = lua
+            .from_value(lua.load(contents).eval().describe("evaluating script")?)
+            .describe("deserialize lua value")?;
+
+        Ok(cfg)
     }
 }
