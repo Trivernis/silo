@@ -6,7 +6,7 @@ use std::{
 
 use crate::{scripting::create_lua, templating, utils::Describe};
 
-use super::{ApplyContext, ParseContext};
+use super::{ApplyContext, ParseContext, ReadMode};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use lazy_static::lazy_static;
 use miette::{Context, IntoDiagnostic, Result};
@@ -58,7 +58,8 @@ impl DirEntry {
                 log::debug!("Found script template");
                 let metadata = RootDirData::read_lua(&script_tmpl, &ctx.config.template_context)?;
                 ctx = Rc::new(ParseContext::new(
-                    metadata.ignored.clone(),
+                    path.clone(),
+                    metadata.read_mode(),
                     ctx.config.clone(),
                 ));
 
@@ -68,7 +69,8 @@ impl DirEntry {
                 log::warn!("Old toml metadata files are deprecated. Please migrate to the `silo.dir.lua` syntax");
                 let metadata = RootDirData::read(&meta_file)?;
                 ctx = Rc::new(ParseContext::new(
-                    metadata.ignored.clone(),
+                    path.clone(),
+                    metadata.read_mode(),
                     ctx.config.clone(),
                 ));
 
@@ -79,7 +81,8 @@ impl DirEntry {
                 let metadata =
                     RootDirData::read_template(&meta_tmpl, &ctx.config.template_context)?;
                 ctx = Rc::new(ParseContext::new(
-                    metadata.ignored.clone(),
+                    path.clone(),
+                    metadata.read_mode(),
                     ctx.config.clone(),
                 ));
 
@@ -94,9 +97,9 @@ impl DirEntry {
             for read_entry in fs::read_dir(&path).into_diagnostic()? {
                 let read_entry = read_entry.into_diagnostic()?;
                 let entry_path = read_entry.path();
-                let test_path = entry_path.strip_prefix(&path).into_diagnostic()?;
+                let test_path = entry_path.strip_prefix(&ctx.base).into_diagnostic()?;
 
-                if !IGNORED_PATHS.is_match(test_path) && !ctx.ignored.is_match(test_path) {
+                if !IGNORED_PATHS.is_match(test_path) && ctx.is_included(test_path) {
                     children.push(DirEntry::parse(ctx.clone(), entry_path)?);
                 } else {
                     log::debug!("Entry {entry_path:?} is ignored")
@@ -189,7 +192,25 @@ impl FileEntry {
 pub struct RootDirData {
     pub path: String,
     #[serde(default)]
-    pub ignored: GlobSet,
+    pub mode: Mode,
+    #[serde(default, alias = "ignored")]
+    pub exclude: GlobSet,
+    #[serde(default)]
+    pub include: GlobSet,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub enum Mode {
+    #[serde(alias = "include")]
+    Include,
+    #[serde(alias = "exclude")]
+    Exclude,
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        Self::Exclude
+    }
 }
 
 impl RootDirData {
@@ -213,13 +234,18 @@ impl RootDirData {
     }
 
     fn read_lua<T: Serialize>(path: &Path, ctx: T) -> Result<Self> {
-        let contents =
-            fs::read_to_string(path).with_describe(|| format!("reading metadata file {path:?}"))?;
         let lua = create_lua(&ctx)?;
-        let cfg = lua
-            .from_value(lua.load(contents).eval().describe("evaluating script")?)
+        let cfg: Self = lua
+            .from_value(lua.load(path).eval().describe("evaluating script")?)
             .describe("deserialize lua value")?;
 
         Ok(cfg)
+    }
+
+    fn read_mode(&self) -> ReadMode {
+        match self.mode {
+            Mode::Include => ReadMode::Include(self.include.clone()),
+            Mode::Exclude => ReadMode::Exclude(self.exclude.clone()),
+        }
     }
 }

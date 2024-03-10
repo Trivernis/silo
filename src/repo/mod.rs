@@ -30,7 +30,11 @@ impl SiloRepo {
             bail!("The repository {path:?} does not exist");
         }
         let config = read_config(path)?;
-        let pctx = ParseContext::new(GlobSet::empty(), config.clone());
+        let pctx = ParseContext::new(
+            path.to_owned(),
+            ReadMode::Exclude(GlobSet::empty()),
+            config.clone(),
+        );
         let content_path = path.join("content");
 
         if !content_path.exists() {
@@ -69,13 +73,26 @@ impl SiloRepo {
 }
 
 pub struct ParseContext {
-    ignored: GlobSet,
+    mode: ReadMode,
     config: SiloConfig,
+    base: PathBuf,
+}
+
+pub enum ReadMode {
+    Include(GlobSet),
+    Exclude(GlobSet),
 }
 
 impl ParseContext {
-    pub fn new(ignored: GlobSet, config: SiloConfig) -> Self {
-        Self { ignored, config }
+    pub fn new(base: PathBuf, mode: ReadMode, config: SiloConfig) -> Self {
+        Self { mode, config, base }
+    }
+
+    pub fn is_included(&self, path: &Path) -> bool {
+        match &self.mode {
+            ReadMode::Include(i) => i.is_match(path),
+            ReadMode::Exclude(e) => !e.is_match(path),
+        }
     }
 }
 
