@@ -1,6 +1,7 @@
 pub mod log_module;
 mod require;
 pub mod silo_module;
+pub mod utils_module;
 
 use miette::Result;
 use mlua::{Lua, LuaSerdeExt};

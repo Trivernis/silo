@@ -1,12 +1,15 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
 use figment::{
     providers::{Env, Format, Serialized, Toml},
     Figment,
 };
 use miette::{Context, IntoDiagnostic, Result};
+use mlua::LuaSerdeExt;
 use serde::{Deserialize, Serialize};
 use which::which;
+
+use crate::{scripting::create_lua, utils::Describe};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SiloConfig {
@@ -39,12 +42,58 @@ fn detect_difftool() -> String {
 /// and the `repo.local.toml` config file
 /// and environment variables prefixed with `SILO_``
 pub fn read_config(repo: &Path) -> Result<SiloConfig> {
-    Figment::from(Serialized::defaults(SiloConfig::default()))
-        .merge(Toml::file(dirs::config_dir().unwrap().join("silo.toml")))
+    let conf_dir = dirs::config_dir().unwrap();
+    let default_config = conf_dir.join("silo.config.lua");
+    let old_config = conf_dir.join("silo.toml");
+
+    if !default_config.exists() {
+        let mut lines = vec![
+            "local silo = require 'silo'".to_owned(),
+            "local utils = require 'utils'".to_owned(),
+            "local config = silo.config".to_owned(),
+        ];
+        if old_config.exists() {
+            lines.push("".to_owned());
+            lines.push("-- merge with old toml config".to_owned());
+            lines.push(format!(
+                "config = utils.merge(config, utils.load_toml {old_config:?})"
+            ));
+        }
+        lines.push("-- Changes can be added to the `config` object".to_owned());
+        lines.push("".to_owned());
+        lines.push("return config".to_owned());
+
+        fs::write(&default_config, lines.join("\n")).describe("Writing default config")?
+    }
+
+    let mut builder = Figment::from(Serialized::defaults(SiloConfig::default()))
+        .merge(Toml::file(old_config))
         .merge(Toml::file(repo.join("repo.toml")))
-        .merge(Toml::file(repo.join("repo.local.toml")))
+        .merge(Toml::file(repo.join("repo.local.toml")));
+
+    let repo_defaults = repo.join("silo.config.lua");
+
+    if repo_defaults.exists() {
+        builder = builder.merge(Serialized::globals(read_lua_config(&repo_defaults)?))
+    }
+
+    builder
+        .merge(Serialized::globals(read_lua_config(&default_config)?))
         .merge(Env::prefixed("SILO_"))
         .extract()
         .into_diagnostic()
         .context("parsing config file")
+}
+
+fn read_lua_config(path: &Path) -> Result<SiloConfig> {
+    let lua = create_lua(&())?;
+    let result = lua
+        .load(path)
+        .eval()
+        .with_describe(|| format!("evaluating config script {path:?}"))?;
+    let cfg = lua
+        .from_value(result)
+        .describe("deserializing lua config value")?;
+
+    Ok(cfg)
 }
