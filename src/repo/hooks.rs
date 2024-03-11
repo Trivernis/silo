@@ -1,5 +1,6 @@
 use embed_nu::{CommandGroupConfig, Context};
 use rusty_value::*;
+use serde::Serialize;
 use std::{
     fs, mem,
     path::{Path, PathBuf},
@@ -23,13 +24,13 @@ impl std::fmt::Debug for HookScript {
     }
 }
 
-#[derive(Clone, Debug, RustyValue)]
+#[derive(Clone, Debug, RustyValue, Serialize)]
 pub struct ApplyAllContext {
     pub repo: PathBuf,
     pub paths: Vec<PathBuf>,
 }
 
-#[derive(Clone, Debug, RustyValue)]
+#[derive(Clone, Debug, RustyValue, Serialize)]
 pub struct ApplyEachContext {
     pub repo: PathBuf,
     pub src: PathBuf,
