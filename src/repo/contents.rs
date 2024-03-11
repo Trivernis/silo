@@ -4,14 +4,14 @@ use std::{
     rc::Rc,
 };
 
-use crate::{scripting::create_lua, templating, utils::Describe};
+use crate::{config::SiloConfig, scripting::create_lua, templating, utils::Describe};
 
 use super::{ApplyContext, ParseContext, ReadMode};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use lazy_static::lazy_static;
 use miette::{Context, IntoDiagnostic, Result};
 use mlua::LuaSerdeExt;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 #[derive(Clone, Debug)]
 pub struct Contents {
@@ -56,7 +56,7 @@ impl DirEntry {
 
             let metadata = if script_tmpl.exists() {
                 log::debug!("Found script template");
-                let metadata = RootDirData::read_lua(&script_tmpl, &ctx.config.template_context)?;
+                let metadata = RootDirData::read_lua(&script_tmpl, &ctx.config)?;
                 ctx = Rc::new(ParseContext::new(
                     path.clone(),
                     metadata.read_mode(),
@@ -78,8 +78,7 @@ impl DirEntry {
             } else if meta_tmpl.exists() {
                 log::debug!("Found metadata template");
                 log::warn!("Old template metadata files are deprecated. Please migrate to the `silo.dir.lua` syntax");
-                let metadata =
-                    RootDirData::read_template(&meta_tmpl, &ctx.config.template_context)?;
+                let metadata = RootDirData::read_template(&meta_tmpl, &ctx.config)?;
                 ctx = Rc::new(ParseContext::new(
                     path.clone(),
                     metadata.read_mode(),
@@ -132,7 +131,7 @@ impl DirEntry {
                 Ok(())
             }
             DirEntry::Root(_, data, children) => {
-                let rendered_path = templating::render(&data.path, &ctx.config.template_context)?;
+                let rendered_path = templating::render(&data.path, &ctx.config)?;
                 let cwd = PathBuf::from(rendered_path);
 
                 for child in children {
@@ -171,7 +170,7 @@ impl FileEntry {
                 let filename = new_path.file_name().unwrap();
 
                 let dest = cwd.join(filename);
-                let render_contents = templating::render(&contents, &ctx.config.template_context)?;
+                let render_contents = templating::render(&contents, &ctx.config.userdata)?;
 
                 ctx.fs.write_all(&dest, &render_contents.into_bytes())?;
                 ctx.fs
@@ -223,18 +222,18 @@ impl RootDirData {
             .with_context(|| format!("parsing metadata file {path:?}"))
     }
 
-    fn read_template<T: Serialize>(path: &Path, ctx: T) -> Result<Self> {
+    fn read_template(path: &Path, cfg: &SiloConfig) -> Result<Self> {
         let contents = fs::read_to_string(path)
             .into_diagnostic()
             .with_context(|| format!("reading metadata file {path:?}"))?;
-        let rendered = templating::render(&contents, ctx)?;
+        let rendered = templating::render(&contents, cfg)?;
         toml::from_str(&rendered)
             .into_diagnostic()
             .with_context(|| format!("parsing metadata file {path:?}"))
     }
 
-    fn read_lua<T: Serialize>(path: &Path, ctx: T) -> Result<Self> {
-        let lua = create_lua(&ctx)?;
+    fn read_lua(path: &Path, cfg: &SiloConfig) -> Result<Self> {
+        let lua = create_lua(&cfg)?;
         let cfg: Self = lua
             .from_value(lua.load(path).eval().describe("evaluating script")?)
             .describe("deserialize lua value")?;

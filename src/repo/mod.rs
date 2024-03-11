@@ -43,7 +43,7 @@ impl SiloRepo {
         let hook_path = path.join("hooks");
 
         let hooks = if hook_path.exists() {
-            Hooks::load(&hook_path)?
+            Hooks::load(&config, &hook_path)?
         } else {
             Hooks::empty()
         };

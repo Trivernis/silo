@@ -26,7 +26,7 @@ fn main() -> Result<()> {
             let repo = SiloRepo::open(&args.repo)?;
             println!(
                 "{}",
-                serde_json::to_string_pretty(&templating::context(repo.config.template_context))
+                serde_json::to_string_pretty(&templating::context(repo.config.userdata))
                     .into_diagnostic()?
             )
         }

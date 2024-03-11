@@ -9,8 +9,9 @@ pub fn silo_module(lua: &Lua) -> Result<Table> {
     exports.set("dirs", lua.to_value(&silo_ctx.dirs)?)?;
     exports.set("flags", lua.to_value(&silo_ctx.flags)?)?;
     exports.set("system", lua.to_value(&silo_ctx.system)?)?;
-    exports.set("usercfg", lua.globals().get::<_, mlua::Value>("silo_ctx")?)?;
-    exports.set("config", lua.to_value(&SiloConfig::default())?)?;
+    let config = lua.globals().get::<_, mlua::Value>("__silo_config")?;
+    exports.set("config", config)?;
+    exports.set("default_config", lua.to_value(&SiloConfig::default())?)?;
 
     Ok(exports)
 }

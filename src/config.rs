@@ -15,15 +15,16 @@ use crate::{scripting::create_lua, utils::Describe};
 pub struct SiloConfig {
     /// Diff tool used to display file differences
     pub diff_tool: String,
-    /// Context values for handlebars that are available globally under the `ctx` variable
-    pub template_context: HashMap<String, toml::Value>,
+    /// Additional config options
+    #[serde(flatten)]
+    pub userdata: HashMap<String, toml::Value>,
 }
 
 impl Default for SiloConfig {
     fn default() -> Self {
         Self {
             diff_tool: detect_difftool(),
-            template_context: HashMap::new(),
+            userdata: HashMap::new(),
         }
     }
 }
@@ -50,7 +51,7 @@ pub fn read_config(repo: &Path) -> Result<SiloConfig> {
         let mut lines = vec![
             "local silo = require 'silo'".to_owned(),
             "local utils = require 'utils'".to_owned(),
-            "local config = silo.config".to_owned(),
+            "local config = silo.default_config".to_owned(),
         ];
         if old_config.exists() {
             lines.push("".to_owned());
@@ -86,7 +87,7 @@ pub fn read_config(repo: &Path) -> Result<SiloConfig> {
 }
 
 fn read_lua_config(path: &Path) -> Result<SiloConfig> {
-    let lua = create_lua(&())?;
+    let lua = create_lua(&SiloConfig::default())?;
     let result = lua
         .load(path)
         .eval()

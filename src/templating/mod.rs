@@ -7,7 +7,7 @@ use miette::{Context, IntoDiagnostic, Result};
 use serde::Serialize;
 mod helpers;
 
-pub fn render<T: Serialize>(template: &str, ctx: T) -> Result<String> {
+pub fn render<T: Serialize + Clone>(template: &str, ctx: T) -> Result<String> {
     engine()
         .render_template(template, &context(ctx))
         .into_diagnostic()
@@ -28,11 +28,15 @@ fn engine<'a>() -> Handlebars<'a> {
     hb
 }
 
-pub fn context<'a, T: Serialize>(ctx: T) -> WrappedContext<'a, T> {
+pub fn context<'a, T: Serialize + Clone>(cfg: T) -> WrappedContext<'a, T> {
     lazy_static! {
         static ref CTX: ContextData = ContextData::default();
     }
-    WrappedContext { data: &CTX, ctx }
+    WrappedContext {
+        data: &CTX,
+        ctx: cfg.clone(),
+        cfg,
+    }
 }
 
 #[derive(Serialize)]
@@ -40,6 +44,7 @@ pub struct WrappedContext<'a, T: Serialize> {
     #[serde(flatten)]
     data: &'a ContextData,
     ctx: T,
+    cfg: T,
 }
 
 #[derive(Clone, Debug, Serialize, Default)]

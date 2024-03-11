@@ -8,7 +8,7 @@ use std::{
 
 use miette::{IntoDiagnostic, Result};
 
-use crate::{scripting::create_lua, utils::Describe};
+use crate::{config::SiloConfig, scripting::create_lua, utils::Describe};
 
 #[derive(Clone, Debug)]
 pub struct Hooks {
@@ -46,7 +46,7 @@ impl Hooks {
         }
     }
 
-    pub fn load(path: &Path) -> Result<Self> {
+    pub fn load(config: &SiloConfig, path: &Path) -> Result<Self> {
         log::debug!("Parsing hooks in {path:?}");
         let readdir = fs::read_dir(path).into_diagnostic()?;
         let mut scripts = Vec::new();
@@ -60,7 +60,7 @@ impl Hooks {
                     .is_some_and(|f| f.to_string_lossy().ends_with(".hook.lua"))
             {
                 log::debug!("Found hook {path:?}");
-                scripts.push(Arc::new(HookScript::load(&path)?))
+                scripts.push(Arc::new(HookScript::load(config, &path)?))
             }
         }
 
@@ -107,8 +107,8 @@ impl Hooks {
 }
 
 impl HookScript {
-    pub fn load(path: &Path) -> Result<Self> {
-        let lua = create_lua(&())?;
+    pub fn load(config: &SiloConfig, path: &Path) -> Result<Self> {
+        let lua = create_lua(&config)?;
         let module: OwnedTable = lua
             .load(path)
             .eval()
