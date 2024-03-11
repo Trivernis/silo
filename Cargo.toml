@@ -15,7 +15,6 @@ chksum = "0.3.0"
 clap = { version = "4.4.17", features = ["derive", "env"] }
 dialoguer = "0.11.0"
 dirs = "5.0.1"
-embed-nu = "0.9.1"
 figment = { version = "0.10.13", features = ["toml", "env"] }
 gix = { version = "0.57.1", default-features = false, features = ["basic", "index", "worktree-mutation", "revision", "blocking-network-client", "prodash", "blocking-http-transport-reqwest-rust-tls"] }
 globset = { version = "0.4.14", features = ["serde", "serde1"] }
@@ -25,7 +24,7 @@ lazy_static = "1.4.0"
 log = "0.4.20"
 merge-struct = "0.1.0"
 miette = { version = "5.10.0", features = ["serde", "fancy"] }
-mlua = { version = "0.9.6", features = ["serialize", "luau", "vendored"] }
+mlua = { version = "0.9.6", features = ["serialize", "luau", "vendored", "unstable"] }
 pretty_env_logger = "0.5.0"
 rusty-value = "0.6.0"
 serde = { version = "1.0.195", features = ["derive"] }

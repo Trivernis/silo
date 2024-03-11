@@ -1,21 +1,23 @@
-use embed_nu::{CommandGroupConfig, Context};
-use rusty_value::*;
+use mlua::{Lua, LuaSerdeExt, OwnedTable};
 use serde::Serialize;
 use std::{
     fs, mem,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use miette::{IntoDiagnostic, Result};
 
+use crate::{scripting::create_lua, utils::Describe};
+
 #[derive(Clone, Debug)]
 pub struct Hooks {
-    scripts: Vec<HookScript>,
+    scripts: Vec<Arc<HookScript>>,
 }
 
-#[derive(Clone)]
 pub struct HookScript {
-    script: embed_nu::Context,
+    lua: Lua,
+    module: mlua::OwnedTable,
 }
 
 impl std::fmt::Debug for HookScript {
@@ -24,13 +26,13 @@ impl std::fmt::Debug for HookScript {
     }
 }
 
-#[derive(Clone, Debug, RustyValue, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct ApplyAllContext {
     pub repo: PathBuf,
     pub paths: Vec<PathBuf>,
 }
 
-#[derive(Clone, Debug, RustyValue, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct ApplyEachContext {
     pub repo: PathBuf,
     pub src: PathBuf,
@@ -44,7 +46,7 @@ impl Hooks {
         }
     }
 
-    pub fn parse(path: &Path) -> Result<Self> {
+    pub fn load(path: &Path) -> Result<Self> {
         log::debug!("Parsing hooks in {path:?}");
         let readdir = fs::read_dir(path).into_diagnostic()?;
         let mut scripts = Vec::new();
@@ -52,9 +54,13 @@ impl Hooks {
         for entry in readdir {
             let path = entry.into_diagnostic()?.path();
 
-            if path.is_file() && path.extension().is_some_and(|e| e == "nu") {
+            if path.is_file()
+                && path
+                    .file_name()
+                    .is_some_and(|f| f.to_string_lossy().ends_with(".hook.lua"))
+            {
                 log::debug!("Found hook {path:?}");
-                scripts.push(HookScript::parse(&path)?)
+                scripts.push(Arc::new(HookScript::load(&path)?))
             }
         }
 
@@ -62,32 +68,32 @@ impl Hooks {
     }
 
     pub fn before_apply_all(&mut self, ctx: ApplyAllContext) -> Result<()> {
-        for script in &mut self.scripts {
-            script.before_apply_all(ctx.clone())?;
+        for script in &self.scripts {
+            script.before_apply_all(&ctx)?;
         }
 
         Ok(())
     }
 
     pub fn after_apply_all(&mut self, ctx: ApplyAllContext) -> Result<()> {
-        for script in &mut self.scripts {
-            script.after_apply_all(ctx.clone())?;
+        for script in &self.scripts {
+            script.after_apply_all(&ctx)?;
         }
 
         Ok(())
     }
 
     pub fn before_apply_each(&mut self, ctx: ApplyEachContext) -> Result<()> {
-        for script in &mut self.scripts {
-            script.before_apply_each(ctx.clone())?;
+        for script in &self.scripts {
+            script.before_apply_each(&ctx)?;
         }
 
         Ok(())
     }
 
     pub fn after_apply_each(&mut self, ctx: ApplyEachContext) -> Result<()> {
-        for script in &mut self.scripts {
-            script.after_apply_each(ctx.clone())?;
+        for script in &self.scripts {
+            script.after_apply_each(&ctx)?;
         }
 
         Ok(())
@@ -101,71 +107,39 @@ impl Hooks {
 }
 
 impl HookScript {
-    pub fn parse(path: &Path) -> Result<Self> {
-        let contents = fs::read_to_string(path).into_diagnostic()?;
+    pub fn load(path: &Path) -> Result<Self> {
+        let lua = create_lua(&())?;
+        let module: OwnedTable = lua
+            .load(path)
+            .eval()
+            .with_describe(|| format!("loading hook script {path:?}"))?;
 
-        let ctx = Context::builder()
-            .with_command_groups(CommandGroupConfig::default().all_groups(true))
-            .into_diagnostic()?
-            .add_script(contents)
-            .into_diagnostic()?
-            .add_parent_env_vars()
-            .build()
-            .into_diagnostic()?;
-        Ok(Self { script: ctx })
+        Ok(Self { lua, module })
     }
 
-    pub fn before_apply_all(&mut self, ctx: ApplyAllContext) -> Result<()> {
-        if self.script.has_fn("before_apply_all") {
-            let pipeline = self
-                .script
-                .call_fn("before_apply_all", [ctx])
-                .into_diagnostic()?;
-            self.script.print_pipeline(pipeline).into_diagnostic()?;
+    pub fn before_apply_all(&self, ctx: &ApplyAllContext) -> Result<()> {
+        self.call_function("before_apply_all", ctx)
+    }
+
+    pub fn after_apply_all(&self, ctx: &ApplyAllContext) -> Result<()> {
+        self.call_function("after_apply_all", ctx)
+    }
+
+    pub fn before_apply_each(&self, ctx: &ApplyEachContext) -> Result<()> {
+        self.call_function("before_apply_each", ctx)
+    }
+
+    pub fn after_apply_each(&self, ctx: &ApplyEachContext) -> Result<()> {
+        self.call_function("after_apply_each", ctx)
+    }
+
+    fn call_function<S: Serialize>(&self, name: &str, ctx: &S) -> Result<()> {
+        if let Ok(hook_fn) = self.module.to_ref().get::<_, mlua::Function<'_>>(name) {
+            hook_fn
+                .call(self.lua.to_value(&ctx).describe("Serializing context")?)
+                .with_describe(|| format!("Calling hook script {name}"))?;
         } else {
             log::debug!("No `before_apply_all` in script");
-        }
-
-        Ok(())
-    }
-
-    pub fn after_apply_all(&mut self, ctx: ApplyAllContext) -> Result<()> {
-        if self.script.has_fn("after_apply_all") {
-            let pipeline = self
-                .script
-                .call_fn("after_apply_all", [ctx])
-                .into_diagnostic()?;
-            self.script.print_pipeline(pipeline).into_diagnostic()?;
-        } else {
-            log::debug!("No `after_apply_all` in script");
-        }
-
-        Ok(())
-    }
-
-    pub fn before_apply_each(&mut self, ctx: ApplyEachContext) -> Result<()> {
-        if self.script.has_fn("before_apply_each") {
-            let pipeline = self
-                .script
-                .call_fn("before_apply_each", [ctx])
-                .into_diagnostic()?;
-            self.script.print_pipeline(pipeline).into_diagnostic()?;
-        } else {
-            log::debug!("No `before_apply_each` in script");
-        }
-
-        Ok(())
-    }
-
-    pub fn after_apply_each(&mut self, ctx: ApplyEachContext) -> Result<()> {
-        if self.script.has_fn("after_apply_each") {
-            let pipeline = self
-                .script
-                .call_fn("after_apply_each", [ctx])
-                .into_diagnostic()?;
-            self.script.print_pipeline(pipeline).into_diagnostic()?;
-        } else {
-            log::debug!("No `after_apply_each` in script");
         }
 
         Ok(())
