@@ -131,7 +131,8 @@ local chmod = utils.ext 'chmod'
 return {
   -- Make `test-2/main` executable
   after_apply_each = function(ctx)
-    if string.match(ctx.dst, "test-2/main") then
+    local fname = "test-2/main"
+    if string.sub(ctx.dst, -#fname) == fname then
       chmod {"+x", ctx.dst}
     end
   end
