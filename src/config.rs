@@ -59,6 +59,9 @@ pub fn read_config(repo: &Path) -> Result<SiloConfig> {
             lines.push(format!(
                 "config = utils.merge(config, utils.load_toml {old_config:?})"
             ));
+            lines.push(format!(
+                "config = utils.merge(config, config.template_context)"
+            ))
         }
         lines.push("-- Changes can be added to the `config` object".to_owned());
         lines.push("".to_owned());
