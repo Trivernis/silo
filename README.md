@@ -29,16 +29,35 @@ which will clone the remote repository to the given path.
 Now add some configuration files you want to track.
 Silo uses metadata-files to keep track of which files belong where.
 For example if you want all files in the root directory of your repo to be copied over
-to your home folder, you'd add a `dir.toml` entry like this:
+to your home folder, you'd add a `silo.dir.lua` entry like this:
 
-```toml
-path = "{{dirs.home}}"
-ignored = []
+```lua
+local silo = require 'silo'
+
+return { 
+  path = silo.dirs.home,
+  -- defaults to "exclude". Can be "include" to only look at included paths
+  mode = "exclude",
+  -- excluded glob patterns if mode is "exclude"
+  exclude = {},
+  -- included glob patterns if mode is "include"
+  include = {}
+}
 ```
 
-Notice the use of templating for the path. The `dirs` variable contains paths specific to your platform.
-`home` in this case would either be `{FOLDERID_Profile}` on Windows or `$HOME` on Linux and MacOS.
-The `ignored` setting can be used to ignore certain files using an array of glob-strings.
+The `silo` module provides utility functions and values that can be used in configuration files.
+You can print those while evaluating the config files by using the `log` module:
+
+```lua
+local silo = require 'silo'
+local log = require 'log'
+
+log.debug(silo) -- debug prints the input value serialized as json
+
+return { 
+  path = silo.dirs.home,
+}
+```
 
 Now add some files to a directory `content` in the repo.
 Normal files get just copied over. Subdirectories are created and copied as well, unless they themselves
@@ -62,20 +81,23 @@ which will process and copy over all the configuration files of that repository.
 
 Silo has several configuration files that are applied in the following order:
 
-- `~/.config/silo.toml`  (or the equivalent on windows)
-- `repo.toml` in the repo's folder
-- `repo.local.toml` in the repo's folder (specific to the system. Don't commit this file)
+- `~/.config/silo.config.lua`  (or the equivalent on windows)
+- `silo.config.lua` in the repo's folder
 - environment variables with prefix `SILO_`
 
 A configuration file looks like this (with all the defaults):
 
-```toml
-# The diff tool that is being used when displaying changes and prompting for confirmation
-diff_tool = "diff"
+```lua
+local silo = require 'silo'
+local config = silo.default_config
 
-# Additional context that is available in all handlebar templates under the `ctx` variable
-[template_context]
-# hello = "world"
+-- The diff tool that is being used when displaying changes and prompting for confirmation
+config.diff_tool =  "diff"
+
+-- Additional context that is available in all handlebar templates under the `ctx` variable
+config.hello = "world"
+
+return config
 ```
 
 
@@ -89,7 +111,7 @@ execute permission will result in a rendered file with the same permission.
 
 #### Hooks
 
-All `.nu` files in the `hooks` folder in the repos root are interpreted as hook scripts.
+All `.hook.lua` files in the `hooks` folder in the repos root are interpreted as hook scripts.
 Currently there's four functions that can be defined in these scripts that correspond to 
 events of the same name:
 ```
@@ -102,12 +124,17 @@ These functions will be called with a single argument, the event context, that c
 to change certain properties of files or inspect the entire list of files that are about to be written.
 For example one could change the attributes of script files with the following hook
 
-```nu
-# Make `test-2/main` executable
-def after_apply_each [ctx] {
-  if $ctx.dst =~ "test-2/main" {
-    chmod +x $ctx.dst
-  }
+```lua
+local utils = require 'utils'
+local chmod = utils.ext 'chmod'
+
+return {
+  -- Make `test-2/main` executable
+  after_apply_each = function(ctx)
+    if string.match(ctx.dst, "test-2/main") then
+      chmod {"+x", ctx.dst}
+    end
+  end
 }
 ```
 
