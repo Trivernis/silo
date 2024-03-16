@@ -220,8 +220,6 @@ checksum = "c56300de3d4b6e12639a862e3a9320b4ea50321689f869c7e3d7bbf2f0f5f95c"
 dependencies = [
  "chksum-core",
  "chksum-hash",
- "chksum-md5",
- "chksum-sha1",
  "chksum-sha2",
 ]
 
@@ -242,8 +240,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74fca0f0064c8c996eb06d803eca772b12cc8f77b53d92103fc457713fe18389"
 dependencies = [
  "chksum-hash-core",
- "chksum-hash-md5",
- "chksum-hash-sha1",
  "chksum-hash-sha2",
 ]
 
@@ -254,45 +250,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "221456234d441c788a2c51a27b91c4380f499de560670a67d3303e621d37b3bd"
 
 [[package]]
-name = "chksum-hash-md5"
-version = "0.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80c33d01c33c9e193fe33e719a29a7eb900c08583375dd1d3269991aacbe434a"
-dependencies = [
- "chksum-hash-core",
- "thiserror",
-]
-
-[[package]]
-name = "chksum-hash-sha1"
-version = "0.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62ae4186244a0990f1cde56d4bb8cc32571a601b065991fd48cce32556aaa1a9"
-dependencies = [
- "chksum-hash-core",
- "thiserror",
-]
-
-[[package]]
 name = "chksum-hash-sha2"
 version = "0.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b18cf27af5d9792412533d94b6ac54b5022d5e53521832a5c5d3bdc2decdcffc"
 dependencies = [
- "chksum-hash-sha2-224",
  "chksum-hash-sha2-256",
- "chksum-hash-sha2-384",
- "chksum-hash-sha2-512",
-]
-
-[[package]]
-name = "chksum-hash-sha2-224"
-version = "0.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb4a205ae2433218c6d8677a384ac0bd27a794c49d9b3febbecd1ebaa9864b44"
-dependencies = [
- "chksum-hash-core",
- "thiserror",
 ]
 
 [[package]]
@@ -306,46 +269,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chksum-hash-sha2-384"
-version = "0.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "317fbe67e0f9fedff9994655e840e4b7495333680a5dde7c2dddb43e46bffcfa"
-dependencies = [
- "chksum-hash-core",
- "thiserror",
-]
-
-[[package]]
-name = "chksum-hash-sha2-512"
-version = "0.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9426c7c11aef475fddb9d1ad95539678ba882ff274e4b5d62e0c89b75b41ee5f"
-dependencies = [
- "chksum-hash-core",
- "thiserror",
-]
-
-[[package]]
-name = "chksum-md5"
-version = "0.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95dda0f76fbb6069e042c370a928457086e1b4eabc7e75f5f49fe1b913634351"
-dependencies = [
- "chksum-core",
- "chksum-hash-md5",
-]
-
-[[package]]
-name = "chksum-sha1"
-version = "0.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d01c47aa947fb8d8649bf9e942a5ff4ec63a550df087433976e266512d2b38dc"
-dependencies = [
- "chksum-core",
- "chksum-hash-sha1",
-]
-
-[[package]]
 name = "chksum-sha2"
 version = "0.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -353,20 +276,7 @@ checksum = "aac0e41b69be74dad939bb277d2b13b6bc9b1e406c62ce6e62eff8a29a106e68"
 dependencies = [
  "chksum-core",
  "chksum-hash-sha2",
- "chksum-sha2-224",
  "chksum-sha2-256",
- "chksum-sha2-384",
- "chksum-sha2-512",
-]
-
-[[package]]
-name = "chksum-sha2-224"
-version = "0.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc70344710cfe7cc696cfbbebbc50584f76a46d7bf29737a58b48e61a15ae31f"
-dependencies = [
- "chksum-core",
- "chksum-hash-sha2-224",
 ]
 
 [[package]]
@@ -377,26 +287,6 @@ checksum = "38ac7f7e93115d4edc71e73c83b1bd3038fdd01525f635f78815956567d0f7ab"
 dependencies = [
  "chksum-core",
  "chksum-hash-sha2-256",
-]
-
-[[package]]
-name = "chksum-sha2-384"
-version = "0.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49ace9dacad0683db9cc7d71c270ff858c86b939729074d6ab6379e8e2c1c7fc"
-dependencies = [
- "chksum-core",
- "chksum-hash-sha2-384",
-]
-
-[[package]]
-name = "chksum-sha2-512"
-version = "0.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5c7acaafd327334c22d591177e5eb3f36eb85a42489fa1544c1f4d867bc7899"
-dependencies = [
- "chksum-core",
- "chksum-hash-sha2-512",
 ]
 
 [[package]]
