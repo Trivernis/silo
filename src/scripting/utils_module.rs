@@ -5,6 +5,7 @@ use std::{
 
 use mlua::{Function, Lua, LuaSerdeExt, Result, Table};
 use serde::Serialize;
+use which::which;
 
 /// Utility functions
 pub fn utils_module(lua: &Lua) -> Result<Table> {
@@ -17,6 +18,7 @@ pub fn utils_module(lua: &Lua) -> Result<Table> {
     exports.set("load_toml", lua.create_function(lua_load_toml)?)?;
     exports.set("ext", lua.create_function(lua_ext)?)?;
     exports.set("ext_piped", lua.create_function(lua_ext_piped)?)?;
+    exports.set("which", lua.create_function(lua_which)?)?;
 
     if let Ok(nu_path) = which::which("nu") {
         exports.set(
@@ -76,6 +78,11 @@ fn lua_load_toml<'a>(lua: &'a Lua, path: String) -> Result<mlua::Value<'a>> {
     lua_from_toml(lua, contents)
 }
 
+/// Returns the path to the given command
+fn lua_which<'a>(_: &'a Lua, path: String) -> Result<Option<String>> {
+    Ok(which(path).ok().map(|p| p.to_string_lossy().into_owned()))
+}
+
 /// Creates a new executable that can be called with a variable number of args
 fn lua_ext<'a>(lua: &'a Lua, program: String) -> Result<Function<'a>> {
     lua.create_function(move |_lua, args| {
@@ -113,8 +120,14 @@ fn lua_ext_piped<'a>(lua: &'a Lua, program: String) -> Result<Function<'a>> {
         let output = cmd.wait_with_output()?;
         let output = CommandOutput {
             code: output.status.code().unwrap_or(0),
-            stdout: String::from_utf8(output.stdout).map_err(mlua::Error::external)?,
-            stderr: String::from_utf8(output.stderr).map_err(mlua::Error::external)?,
+            stdout: String::from_utf8(output.stdout)
+                .map_err(mlua::Error::external)?
+                .trim()
+                .into(),
+            stderr: String::from_utf8(output.stderr)
+                .map_err(mlua::Error::external)?
+                .trim()
+                .into(),
         };
 
         lua.to_value(&output)

@@ -1,6 +1,7 @@
 use mlua::{Lua, Result, Table};
 
 use super::log_module::log_module;
+use super::path_module::path_module;
 use super::silo_module::silo_module;
 use super::utils_module::utils_module;
 
@@ -18,6 +19,7 @@ fn lua_require(lua: &Lua, module: String) -> Result<Table<'_>> {
         "silo" => silo_module(lua),
         "log" => log_module(lua),
         "utils" => utils_module(lua),
+        "path" => path_module(lua),
         _ => {
             let old_require: mlua::Function = lua.globals().get("old_require")?;
             old_require.call(module)

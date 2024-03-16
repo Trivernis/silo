@@ -1,4 +1,5 @@
 pub mod log_module;
+pub mod path_module;
 mod require;
 pub mod silo_module;
 pub mod utils_module;
