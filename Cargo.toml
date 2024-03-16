@@ -11,7 +11,7 @@ name = "silo"
 path = "src/main.rs"
 
 [dependencies]
-chksum = "0.3.0"
+chksum = { version = "0.3.0", default-features = false, features = ["sha2-256"] }
 clap = { version = "4.4.17", features = ["derive", "env"] }
 dialoguer = "0.11.0"
 dirs = "5.0.1"
