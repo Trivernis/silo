@@ -233,7 +233,7 @@ impl RootDirData {
     }
 
     fn read_lua(path: &Path, cfg: &SiloConfig) -> Result<Self> {
-        let lua = create_lua(&cfg)?;
+        let lua = create_lua(cfg)?;
         let cfg: Self = lua
             .from_value(lua.load(path).eval().describe("evaluating script")?)
             .describe("deserialize lua value")?;

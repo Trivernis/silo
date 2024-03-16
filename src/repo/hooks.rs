@@ -108,7 +108,7 @@ impl Hooks {
 
 impl HookScript {
     pub fn load(config: &SiloConfig, path: &Path) -> Result<Self> {
-        let lua = create_lua(&config)?;
+        let lua = create_lua(config)?;
         let module: OwnedTable = lua
             .load(path)
             .eval()

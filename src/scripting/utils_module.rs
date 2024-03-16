@@ -52,7 +52,7 @@ fn lua_merge<'a>(lua: &'a Lua, (a, b): (mlua::Value, mlua::Value)) -> Result<mlu
 }
 
 /// Parse a json string into a lua value
-fn lua_from_json<'a>(lua: &'a Lua, json_string: String) -> Result<mlua::Value<'a>> {
+fn lua_from_json(lua: &Lua, json_string: String) -> Result<mlua::Value<'_>> {
     let toml_value: serde_json::Value =
         serde_json::from_str(&json_string).map_err(mlua::Error::external)?;
 
@@ -60,31 +60,31 @@ fn lua_from_json<'a>(lua: &'a Lua, json_string: String) -> Result<mlua::Value<'a
 }
 
 /// Reads a json file and parses it as a lua value
-fn lua_load_json<'a>(lua: &'a Lua, path: String) -> Result<mlua::Value<'a>> {
+fn lua_load_json(lua: &Lua, path: String) -> Result<mlua::Value<'_>> {
     let contents = fs::read_to_string(path)?;
     lua_from_json(lua, contents)
 }
 
 /// Parse a toml string into a lua value
-fn lua_from_toml<'a>(lua: &'a Lua, toml_string: String) -> Result<mlua::Value<'a>> {
+fn lua_from_toml(lua: &Lua, toml_string: String) -> Result<mlua::Value<'_>> {
     let toml_value: toml::Value = toml::from_str(&toml_string).map_err(mlua::Error::external)?;
 
     lua.to_value(&toml_value)
 }
 
 /// Reads a toml file and parses it as a lua value
-fn lua_load_toml<'a>(lua: &'a Lua, path: String) -> Result<mlua::Value<'a>> {
+fn lua_load_toml(lua: &Lua, path: String) -> Result<mlua::Value<'_>> {
     let contents = fs::read_to_string(path)?;
     lua_from_toml(lua, contents)
 }
 
 /// Returns the path to the given command
-fn lua_which<'a>(_: &'a Lua, path: String) -> Result<Option<String>> {
+fn lua_which(_: &Lua, path: String) -> Result<Option<String>> {
     Ok(which(path).ok().map(|p| p.to_string_lossy().into_owned()))
 }
 
 /// Creates a new executable that can be called with a variable number of args
-fn lua_ext<'a>(lua: &'a Lua, program: String) -> Result<Function<'a>> {
+fn lua_ext(lua: &Lua, program: String) -> Result<Function<'_>> {
     lua.create_function(move |_lua, args| {
         let exit_status = Command::new(&program)
             .args::<Vec<String>, _>(args)
@@ -110,7 +110,7 @@ struct CommandOutput {
 }
 
 /// Creates a new executable that can be called with a variable number of args
-fn lua_ext_piped<'a>(lua: &'a Lua, program: String) -> Result<Function<'a>> {
+fn lua_ext_piped(lua: &Lua, program: String) -> Result<Function<'_>> {
     lua.create_function(move |lua, args| {
         let cmd = Command::new(&program)
             .args::<Vec<String>, _>(args)
